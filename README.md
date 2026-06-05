@@ -1,5 +1,5 @@
 # Detection-explicable-danomalies
-étection explicable d’anomalies dans les logs d’infrastructure bancaire par apprentissage du comportement normal
+Détection explicable d’anomalies dans les logs d’infrastructure bancaire par apprentissage du comportement normal
 Or in English:
 Explainable anomaly detection in banking infrastructure logs using behavioral baseline learning
 This is the strongest subject because it is validated by all sources. It is also feasible for a semester 6 mini-project.
