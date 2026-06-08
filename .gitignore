@@ -1,0 +1,31 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data — CICIDS2017 files are large, store locally only
+data/raw/
+data/*.csv
+data/*.zip
+
+# Models — large binaries, not committed
+models/*.pkl
+models/*.joblib
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -7,8 +7,8 @@
 ---
 
 ## Phase 0 — Setup
-- [ ] Créer le repo Git + dossiers (`/data`, `/notebooks`, `/models`, `/app`)
-- [ ] Créer l'environnement Python (venv + pandas, scikit-learn, streamlit, matplotlib/seaborn, joblib)
+- [x] Créer le repo Git + dossiers (`/data`, `/notebooks`, `/models`, `/app`)
+- [x] Créer l'environnement Python (venv + pandas, scikit-learn, streamlit, matplotlib/seaborn, joblib)
 - [ ] Répartir les tâches entre les trois membres
 
 ## Phase 1 — Récupérer et comprendre les données

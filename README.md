@@ -7,3 +7,13 @@ Dataset: CICIDS2017 as main dataset.
 Models: Isolation Forest for anomaly detection + Random Forest for interpretable classification.
 Interface: Streamlit dashboard showing verdict, risk score, top features, rule baseline comparison, and analyst feedback button.
 Why defensible: INT-001 validates network anomaly detection and public datasets; INT-003 validates SOC false-positive reduction and feature explanation; INT-004 validates the demo structure.
+
+## Quickstart
+
+```bash
+git clone <repo-url>
+cd Detection-explicable-danomalies
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
