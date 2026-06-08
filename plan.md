@@ -12,9 +12,9 @@
 - [ ] Répartir les tâches entre les trois membres
 
 ## Phase 1 — Récupérer et comprendre les données
-- [ ] Télécharger CICIDS2017 (8 fichiers CSV depuis le site du CIC)
-- [ ] Identifier quel jour = quelle attaque, et le sens des labels
-- [ ] Charger et inspecter (shapes, colonnes, distribution des labels)
+- [x] Télécharger CICIDS2017 (8 fichiers CSV depuis le site du CIC)
+- [x] Identifier quel jour = quelle attaque, et le sens des labels
+- [x] Charger et inspecter (shapes, colonnes, distribution des labels)
 
 ## Phase 2 — Nettoyage (le vrai travail)
 - [ ] Corriger les noms de colonnes (espaces en début de nom — piège connu)
