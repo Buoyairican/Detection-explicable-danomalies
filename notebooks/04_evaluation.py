@@ -1,26 +1,25 @@
 # %% [markdown]
-# # Phase 4 - Evaluation et explicabilite (CICIDS2017)
+# # Phase 4 - Evaluation and explainability (CICIDS2017)
 #
-# Ce notebook EVALUE et COMPARE les trois approches de detection sur le jeu de
-# TEST complet : la baseline de regles statiques, l'Isolation Forest, et le
-# MODELE GAGNANT du bake-off de la Phase 3 (`best_model.pkl`, un pipeline
-# StandardScaler + modele qui consomme des features BRUTES). Il affiche le
-# classement du bake-off (F1 par validation croisee), les matrices de confusion,
-# un tableau de metriques comparatif, la reduction des faux positifs face a la
-# baseline de regles, l'importance globale des features du gagnant, et
-# l'explicabilite "pourquoi cette alerte" pour quelques flux d'attaque detectes.
-# Tous les chiffres sont sauvegardes dans reports/metrics.json.
+# This notebook EVALUATES and COMPARES the three detection approaches on the full
+# TEST set: the static rules baseline, the Isolation Forest, and the WINNING
+# MODEL of the Phase 3 bake-off (`best_model.pkl`, a StandardScaler + model
+# pipeline that consumes RAW features). It shows the bake-off ranking (cross-
+# validation F1), the confusion matrices, a comparison metrics table, the false
+# positive reduction versus the rules baseline, the winner's global feature
+# importances, and the "why this alert" explainability for a few detected attack
+# flows. All numbers are saved to reports/metrics.json.
 
 # %% [markdown]
-# ## 1. Imports et chargement des artefacts (Phase 3)
+# ## 1. Imports and loading the Phase 3 artifacts
 #
-# On charge le jeu de test (features BRUTES + labels), la liste des features, le
-# modele gagnant du bake-off + ses metadonnees, le tableau de resultats de la
-# validation croisee, l'Isolation Forest et le scaler gele (pour la baseline
-# iso), les moyennes BENIGN (pour l'explicabilite) et les regles statiques.
+# We load the test set (RAW features + labels), the feature list, the winning
+# bake-off model + its metadata, the cross-validation results table, the
+# Isolation Forest and the frozen scaler (for the iso baseline), the BENIGN means
+# (for explainability) and the static rules.
 
 # %%
-# 1. Imports
+# imports
 import json
 import pandas as pd
 import numpy as np
@@ -32,189 +31,188 @@ import joblib
 
 sns.set(style="whitegrid")
 
-# Chemin absolu de la racine du projet
+# absolute project root path
 BASE = "/home/samouraifox/Work/stuff/S6/Notes_Ai/projet-final/model-building/Detection-explicable-danomalies"
 
-# Chargement du jeu de test complet (features BRUTES + labels)
+# load the full test set (RAW features + labels)
 df = pd.read_parquet(BASE + "/data/processed/test_set.parquet")
-print(f"Shape du jeu de test : {df.shape}")
+print(f"Test set shape: {df.shape}")
 print(df["Label_binary"].value_counts())
 
-# Chargement de la liste ordonnee des features et des artefacts du contrat
+# load the ordered feature list and the contract artifacts
 features = joblib.load(BASE + "/models/features.pkl")
-best_model = joblib.load(BASE + "/models/best_model.pkl")   # pipeline gagnant (entree BRUTE)
-iso = joblib.load(BASE + "/models/isolation_forest.pkl")    # baseline non supervisee
-scaler = joblib.load(BASE + "/models/scaler.pkl")           # scaler gele (sert a l'iso)
-benign_means = joblib.load(BASE + "/models/benign_means.pkl")  # moyennes BENIGN (explicabilite)
+best_model = joblib.load(BASE + "/models/best_model.pkl")   # winning pipeline (RAW input)
+iso = joblib.load(BASE + "/models/isolation_forest.pkl")    # unsupervised baseline
+scaler = joblib.load(BASE + "/models/scaler.pkl")           # frozen scaler (used by iso)
+benign_means = joblib.load(BASE + "/models/benign_means.pkl")  # BENIGN means (explainability)
 
-# Metadonnees du gagnant + tableau de la validation croisee du bake-off
-with open(BASE + "/models/best_model_meta.json") as fichier:
-    best_model_meta = json.load(fichier)
-with open(BASE + "/models/cv_results.json") as fichier:
-    cv_results = json.load(fichier)
-with open(BASE + "/models/rule_baseline.json") as fichier:
-    rule_baseline = json.load(fichier)
+# winner metadata + bake-off cross-validation table
+with open(BASE + "/models/best_model_meta.json") as f:
+    best_model_meta = json.load(f)
+with open(BASE + "/models/cv_results.json") as f:
+    cv_results = json.load(f)
+with open(BASE + "/models/rule_baseline.json") as f:
+    rule_baseline = json.load(f)
 
-# Nom du modele gagnant (sert de libelle dans tout le notebook)
-nom_gagnant = best_model_meta["name"]
-print(f"Nombre de features : {len(features)}")
-print(f"Modele gagnant du bake-off : {nom_gagnant}")
-print(f"F1 CV du gagnant : {best_model_meta['cv_f1_mean']:.4f} +/- {best_model_meta['cv_f1_std']:.4f}")
-print(f"Logique des regles : {rule_baseline['logique']}")
+# winning model name (used as a label throughout the notebook)
+winner_name = best_model_meta["name"]
+print(f"Number of features: {len(features)}")
+print(f"Bake-off winning model: {winner_name}")
+print(f"Winner CV F1: {best_model_meta['cv_f1_mean']:.4f} +/- {best_model_meta['cv_f1_std']:.4f}")
+print(f"Rules logic: {rule_baseline['logique']}")
 
 # %% [markdown]
-# ## 2. Predictions des trois approches sur le TEST
+# ## 2. Predictions of the three approaches on the TEST set
 #
-# Convention du contrat : le GAGNANT consomme des features BRUTES
-# (`best_model.predict(df[features])`, son scaler interne re-met a l'echelle).
-# L'Isolation Forest predit sur les features mises a l'echelle par le scaler gele
-# (`scaler.transform`). Les regles statiques s'appliquent sur les features
-# BRUTES. La verite terrain est `Label_binary` (0 = BENIGN, 1 = attaque).
+# Contract convention: the WINNER consumes RAW features
+# (`best_model.predict(df[features])`, its internal scaler rescales them). The
+# Isolation Forest predicts on features scaled by the frozen scaler
+# (`scaler.transform`). The static rules apply on RAW features. The ground truth
+# is `Label_binary` (0 = BENIGN, 1 = attack).
 
 # %%
-# 2a. Matrices de features et verite terrain
-X = df[features]                 # features BRUTES (gagnant + regles + explicabilite)
-Xs = scaler.transform(X)         # features mises a l'echelle (pour l'Isolation Forest)
-y_true = df["Label_binary"]      # verite terrain : 0 = BENIGN, 1 = attaque
+# feature matrices and ground truth
+X = df[features]                 # RAW features (winner + rules + explainability)
+Xs = scaler.transform(X)         # scaled features (for the Isolation Forest)
+y_true = df["Label_binary"]      # ground truth: 0 = BENIGN, 1 = attack
 
-# 2b. Modele gagnant : prediction binaire + score de risque (proba d'attaque) sur features BRUTES
+# winner: binary prediction + risk score (attack proba) on RAW features
 y_pred_best = best_model.predict(X)
-proba_best = best_model.predict_proba(X)[:, 1]   # score de risque = proba de la classe attaque
+proba_best = best_model.predict_proba(X)[:, 1]   # risk score = proba of the attack class
 
-# 2c. Isolation Forest : -1 = anomalie -> 1 (attaque), 1 = normal -> 0 (BENIGN)
+# Isolation Forest: -1 = anomaly -> 1 (attack), 1 = normal -> 0 (BENIGN)
 iso_pred_raw = iso.predict(Xs)
-y_pred_iso = np.where(iso_pred_raw == -1, 1, 0)  # -1 anomalie -> attaque (1), 1 normal -> BENIGN (0)
+y_pred_iso = np.where(iso_pred_raw == -1, 1, 0)  # -1 anomaly -> attack (1), 1 normal -> BENIGN (0)
 
-# 2d. Baseline de regles statiques sur les features BRUTES (OR logique des 5 regles)
-seuil_avg_packet_size = 496.0
-seuil_bwd_packets_s = 58823.0
-seuil_flow_packets_s = 500000.0
-seuil_fwd_packets_court = 3
-seuil_flow_duration_long = 1000000.0
-seuil_flow_bytes_s = 12000000.0
+# static rules baseline on RAW features (logical OR of the 5 rules)
+thr_avg_packet_size = 496.0
+thr_bwd_packets_s = 58823.0
+thr_flow_packets_s = 500000.0
+thr_fwd_packets_short = 3
+thr_flow_duration_long = 1000000.0
+thr_flow_bytes_s = 12000000.0
 
-regle_avg_size = X["Average Packet Size"] > seuil_avg_packet_size
-regle_bwd_rate = X["Bwd Packets/s"] > seuil_bwd_packets_s
-regle_flow_rate = X["Flow Packets/s"] > seuil_flow_packets_s
-regle_court_long = (X["Total Fwd Packets"] <= seuil_fwd_packets_court) & (X["Flow Duration"] > seuil_flow_duration_long)
-regle_bytes_rate = X["Flow Bytes/s"] > seuil_flow_bytes_s
+rule_avg_size = X["Average Packet Size"] > thr_avg_packet_size
+rule_bwd_rate = X["Bwd Packets/s"] > thr_bwd_packets_s
+rule_flow_rate = X["Flow Packets/s"] > thr_flow_packets_s
+rule_short_long = (X["Total Fwd Packets"] <= thr_fwd_packets_short) & (X["Flow Duration"] > thr_flow_duration_long)
+rule_bytes_rate = X["Flow Bytes/s"] > thr_flow_bytes_s
 
-# OR logique des 5 regles -> prediction de la baseline
-y_pred_rule = (regle_avg_size | regle_bwd_rate | regle_flow_rate | regle_court_long | regle_bytes_rate).astype(int)
+# logical OR of the 5 rules -> baseline prediction
+y_pred_rule = (rule_avg_size | rule_bwd_rate | rule_flow_rate | rule_short_long | rule_bytes_rate).astype(int)
 
-print("Predictions calculees pour les 3 approches.")
-print(f"Positifs (attaque) - Regles           : {int(y_pred_rule.sum())}")
-print(f"Positifs (attaque) - Isolation Forest : {int(y_pred_iso.sum())}")
-print(f"Positifs (attaque) - {nom_gagnant:18s} : {int(y_pred_best.sum())}")
+print("Predictions computed for the 3 approaches.")
+print(f"Positives (attack) - Rules            : {int(y_pred_rule.sum())}")
+print(f"Positives (attack) - Isolation Forest : {int(y_pred_iso.sum())}")
+print(f"Positives (attack) - {winner_name:18s} : {int(y_pred_best.sum())}")
 
 # %% [markdown]
-# ## 3. Bake-off : classement des 7 modeles par validation croisee
+# ## 3. Bake-off: ranking of the 7 models by cross-validation
 #
-# On represente le F1 moyen (validation croisee 10-fold sur le sous-echantillon
-# du train) +/- ecart-type des 7 modeles compares en Phase 3, lus dans
-# `cv_results.json`. Le modele gagnant est mis en evidence en couleur. C'est la
-# justification du choix du modele principal.
+# We plot the mean F1 (10-fold cross-validation on the train subsample) +/- std
+# of the 7 models compared in Phase 3, read from `cv_results.json`. The winning
+# model is highlighted in color. This is the justification of the main model
+# choice.
 
 # %%
-# 3. Bar chart du bake-off : F1 CV moyen +/- std des 7 modeles (gagnant en evidence)
-# Lecture du tableau de validation croisee + tri par F1 moyen croissant (lisible)
-noms_modeles = []
-f1_moyens = []
+# bar chart of the bake-off: mean CV F1 +/- std of the 7 models (winner highlighted)
+# read the cross-validation table + sort by ascending mean F1 (readable)
+model_names = []
+f1_means = []
 f1_stds = []
 selected_flags = []
-for nom, res in cv_results.items():
-    noms_modeles.append(nom)
-    f1_moyens.append(res["cv_f1_mean"])
+for name, res in cv_results.items():
+    model_names.append(name)
+    f1_means.append(res["cv_f1_mean"])
     f1_stds.append(res["cv_f1_std"])
     selected_flags.append(res["selected"])
 
 df_bakeoff = pd.DataFrame({
-    "Modele": noms_modeles,
-    "F1_moyen": f1_moyens,
+    "Model": model_names,
+    "F1_mean": f1_means,
     "F1_std": f1_stds,
     "selected": selected_flags,
-}).sort_values("F1_moyen").reset_index(drop=True)
+}).sort_values("F1_mean").reset_index(drop=True)
 
-print("=== Bake-off : F1 par validation croisee (10-fold) ===")
+print("=== Bake-off: F1 by cross-validation (10-fold) ===")
 print(df_bakeoff.round(4).to_string(index=False))
 
-# Couleurs : gagnant en vert, les autres en gris-bleu
-couleurs_bakeoff = ["seagreen" if sel else "steelblue" for sel in df_bakeoff["selected"]]
+# colors: winner in green, the others in gray-blue
+bakeoff_colors = ["seagreen" if sel else "steelblue" for sel in df_bakeoff["selected"]]
 
 plt.figure(figsize=(10, 6))
-plt.barh(df_bakeoff["Modele"], df_bakeoff["F1_moyen"],
-         xerr=df_bakeoff["F1_std"], color=couleurs_bakeoff,
+plt.barh(df_bakeoff["Model"], df_bakeoff["F1_mean"],
+         xerr=df_bakeoff["F1_std"], color=bakeoff_colors,
          capsize=4, error_kw={"ecolor": "black"})
-plt.title("Bake-off des 7 modeles : F1 moyen par validation croisee (10-fold)\nLe gagnant (" + nom_gagnant + ") est mis en evidence")
-plt.xlabel("F1 moyen (classe attaque) +/- ecart-type")
-plt.ylabel("Modele")
+plt.title("Bake-off of the 7 models: mean F1 by cross-validation (10-fold)\nThe winner (" + winner_name + ") is highlighted")
+plt.xlabel("Mean F1 (attack class) +/- std")
+plt.ylabel("Model")
 plt.xlim(0, 1.05)
-# Annotation de la valeur du F1 au bout de chaque barre
-for i, (val, std) in enumerate(zip(df_bakeoff["F1_moyen"], df_bakeoff["F1_std"])):
+# annotate the F1 value at the end of each bar
+for i, (val, std) in enumerate(zip(df_bakeoff["F1_mean"], df_bakeoff["F1_std"])):
     plt.text(val + std + 0.01, i, f"{val:.4f}", va="center", fontsize=9)
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/11_bakeoff_cv_f1.png", dpi=120)
 plt.show()
 
 # %% [markdown]
-# ## 4. Matrices de confusion des trois approches
+# ## 4. Confusion matrices of the three approaches
 #
-# Pour chaque approche on affiche la matrice de confusion (lignes = verite,
-# colonnes = prediction). Les faux positifs (BENIGN flagges attaque) sont la
-# cellule en haut a droite : ils representent les alertes inutiles que les
-# analystes du SOC doivent traiter.
+# For each approach we show the confusion matrix (rows = truth, columns =
+# prediction). The false positives (BENIGN flagged as attack) are the top-right
+# cell: they represent the useless alerts that SOC analysts have to handle.
 
 # %%
-# 4a. Matrice de confusion - Baseline de regles
+# confusion matrix - rules baseline
 cm_rule = confusion_matrix(y_true, y_pred_rule)
 plt.figure(figsize=(6, 5))
 sns.heatmap(cm_rule, annot=True, fmt="d", cmap="Reds",
-            xticklabels=["BENIGN", "Attaque"], yticklabels=["BENIGN", "Attaque"])
-plt.title("Matrice de confusion - Baseline de regles")
+            xticklabels=["BENIGN", "Attack"], yticklabels=["BENIGN", "Attack"])
+plt.title("Confusion matrix - Rules baseline")
 plt.xlabel("Prediction")
-plt.ylabel("Verite terrain")
+plt.ylabel("Ground truth")
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/06_cm_regles.png", dpi=120)
 plt.show()
 
 # %%
-# 4b. Matrice de confusion - Isolation Forest
+# confusion matrix - Isolation Forest
 cm_iso = confusion_matrix(y_true, y_pred_iso)
 plt.figure(figsize=(6, 5))
 sns.heatmap(cm_iso, annot=True, fmt="d", cmap="Oranges",
-            xticklabels=["BENIGN", "Attaque"], yticklabels=["BENIGN", "Attaque"])
-plt.title("Matrice de confusion - Isolation Forest")
+            xticklabels=["BENIGN", "Attack"], yticklabels=["BENIGN", "Attack"])
+plt.title("Confusion matrix - Isolation Forest")
 plt.xlabel("Prediction")
-plt.ylabel("Verite terrain")
+plt.ylabel("Ground truth")
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/07_cm_isolation_forest.png", dpi=120)
 plt.show()
 
 # %%
-# 4c. Matrice de confusion - Modele gagnant du bake-off
+# confusion matrix - bake-off winning model
 cm_best = confusion_matrix(y_true, y_pred_best)
 plt.figure(figsize=(6, 5))
 sns.heatmap(cm_best, annot=True, fmt="d", cmap="Greens",
-            xticklabels=["BENIGN", "Attaque"], yticklabels=["BENIGN", "Attaque"])
-plt.title("Matrice de confusion - " + nom_gagnant + " (modele gagnant)")
+            xticklabels=["BENIGN", "Attack"], yticklabels=["BENIGN", "Attack"])
+plt.title("Confusion matrix - " + winner_name + " (winning model)")
 plt.xlabel("Prediction")
-plt.ylabel("Verite terrain")
+plt.ylabel("Ground truth")
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/08_cm_best_model.png", dpi=120)
 plt.show()
 
 # %% [markdown]
-# ## 5. Tableau comparatif des metriques
+# ## 5. Comparison metrics table
 #
-# On calcule pour les trois approches : precision, recall, f1 (sur la classe
-# attaque), accuracy globale, nombre de faux positifs et taux de faux positifs
-# (FP / (FP + TN), c'est-a-dire la proportion de BENIGN flagges a tort). Le
-# taux de faux positifs est la metrique centrale du projet.
+# We compute for the three approaches: precision, recall, f1 (on the attack
+# class), global accuracy, number of false positives and false positive rate
+# (FP / (FP + TN), i.e. the proportion of BENIGN wrongly flagged). The false
+# positive rate is the central metric of the project.
 
 # %%
-# 5a. Faux positifs (FP) et vrais negatifs (TN) lus dans chaque matrice de confusion
-# Cellule [0, 1] = BENIGN (verite 0) predit attaque (1) = faux positif
-# Cellule [0, 0] = BENIGN (verite 0) predit BENIGN (0) = vrai negatif
+# false positives (FP) and true negatives (TN) read from each confusion matrix
+# cell [0, 1] = BENIGN (truth 0) predicted attack (1) = false positive
+# cell [0, 0] = BENIGN (truth 0) predicted BENIGN (0) = true negative
 fp_rule = int(cm_rule[0, 1])
 tn_rule = int(cm_rule[0, 0])
 fp_iso = int(cm_iso[0, 1])
@@ -222,100 +220,99 @@ tn_iso = int(cm_iso[0, 0])
 fp_best = int(cm_best[0, 1])
 tn_best = int(cm_best[0, 0])
 
-# Taux de faux positifs = FP / (FP + TN)
+# false positive rate = FP / (FP + TN)
 fp_rate_rule = fp_rule / (fp_rule + tn_rule)
 fp_rate_iso = fp_iso / (fp_iso + tn_iso)
 fp_rate_best = fp_best / (fp_best + tn_best)
 
-# 5b. Construction du tableau comparatif (DataFrame)
-modeles = ["Regles", "Isolation Forest", nom_gagnant]
-predictions = {"Regles": y_pred_rule, "Isolation Forest": y_pred_iso, nom_gagnant: y_pred_best}
-fp_par_modele = {"Regles": fp_rule, "Isolation Forest": fp_iso, nom_gagnant: fp_best}
-fp_rate_par_modele = {"Regles": fp_rate_rule, "Isolation Forest": fp_rate_iso, nom_gagnant: fp_rate_best}
+# build the comparison table (DataFrame)
+models = ["Rules", "Isolation Forest", winner_name]
+predictions = {"Rules": y_pred_rule, "Isolation Forest": y_pred_iso, winner_name: y_pred_best}
+fp_per_model = {"Rules": fp_rule, "Isolation Forest": fp_iso, winner_name: fp_best}
+fp_rate_per_model = {"Rules": fp_rate_rule, "Isolation Forest": fp_rate_iso, winner_name: fp_rate_best}
 
-# Dictionnaire des metriques par modele + boucle for (motif autorise)
-comparaison = {"Modele": [], "Precision": [], "Recall": [], "F1": [],
-               "Accuracy": [], "Faux positifs": [], "Taux de FP": []}
-for nom in modeles:
-    y_pred = predictions[nom]
-    comparaison["Modele"].append(nom)
-    comparaison["Precision"].append(precision_score(y_true, y_pred, zero_division=0))
-    comparaison["Recall"].append(recall_score(y_true, y_pred, zero_division=0))
-    comparaison["F1"].append(f1_score(y_true, y_pred, zero_division=0))
-    comparaison["Accuracy"].append(accuracy_score(y_true, y_pred))
-    comparaison["Faux positifs"].append(fp_par_modele[nom])
-    comparaison["Taux de FP"].append(fp_rate_par_modele[nom])
+# dict of metrics per model + for loop (allowed idiom)
+comparison = {"Model": [], "Precision": [], "Recall": [], "F1": [],
+              "Accuracy": [], "False positives": [], "FP rate": []}
+for name in models:
+    y_pred = predictions[name]
+    comparison["Model"].append(name)
+    comparison["Precision"].append(precision_score(y_true, y_pred, zero_division=0))
+    comparison["Recall"].append(recall_score(y_true, y_pred, zero_division=0))
+    comparison["F1"].append(f1_score(y_true, y_pred, zero_division=0))
+    comparison["Accuracy"].append(accuracy_score(y_true, y_pred))
+    comparison["False positives"].append(fp_per_model[name])
+    comparison["FP rate"].append(fp_rate_per_model[name])
 
-df_comparaison = pd.DataFrame(comparaison)
-print("=== Tableau comparatif des metriques (jeu de test) ===")
-print(df_comparaison.round(4).to_string(index=False))
+df_comparison = pd.DataFrame(comparison)
+print("=== Comparison metrics table (test set) ===")
+print(df_comparison.round(4).to_string(index=False))
 
 # %% [markdown]
-# ## 6. Reduction des faux positifs face a la baseline de regles
+# ## 6. False positive reduction versus the rules baseline
 #
-# L'objectif metier vise une forte reduction des faux positifs par rapport a la
-# baseline de regles. On calcule la reduction reelle apportee par le modele
-# gagnant et par l'Isolation Forest, puis on la situe honnetement par rapport a
-# la fourchette de reference 60-80 % (on rapporte les vrais chiffres meme s'ils
-# en sortent).
+# The business goal targets a strong reduction of false positives compared to the
+# rules baseline. We compute the actual reduction achieved by the winning model
+# and by the Isolation Forest, then honestly place it against the 60-80 %
+# reference range (we report the real numbers even if they fall outside).
 
 # %%
-# 6. Reduction des faux positifs par rapport a la baseline de regles
+# false positive reduction versus the rules baseline
 fp_reduction_best = (fp_rule - fp_best) / fp_rule * 100
 fp_reduction_iso = (fp_rule - fp_iso) / fp_rule * 100
 
-print(f"Faux positifs - Baseline de regles : {fp_rule}")
-print(f"Faux positifs - Isolation Forest   : {fp_iso}")
-print(f"Faux positifs - {nom_gagnant:18s} : {fp_best}")
-print(f"\nReduction des FP ({nom_gagnant} vs Regles)    : {fp_reduction_best:.4f} %")
-print(f"Reduction des FP (Isolation Forest vs Regles) : {fp_reduction_iso:.4f} %")
+print(f"False positives - Rules baseline   : {fp_rule}")
+print(f"False positives - Isolation Forest : {fp_iso}")
+print(f"False positives - {winner_name:18s} : {fp_best}")
+print(f"\nFP reduction ({winner_name} vs Rules)         : {fp_reduction_best:.4f} %")
+print(f"FP reduction (Isolation Forest vs Rules) : {fp_reduction_iso:.4f} %")
 
-# Situation honnete par rapport a la fourchette de reference 60-80 %
-cible_min = 60.0
-cible_max = 80.0
-dans_cible_best = (fp_reduction_best >= cible_min) and (fp_reduction_best <= cible_max)
-dans_cible_iso = (fp_reduction_iso >= cible_min) and (fp_reduction_iso <= cible_max)
-print(f"\nReference : reduction des FP entre {cible_min:.0f} % et {cible_max:.0f} %")
-print(f"{nom_gagnant} dans la fourchette 60-80 %    : {dans_cible_best}")
-print(f"Isolation Forest dans la fourchette 60-80 % : {dans_cible_iso}")
-if fp_reduction_best > cible_max:
-    print(f"-> Le modele gagnant ({nom_gagnant}) DEPASSE la fourchette (reduction encore plus forte) : resultat favorable.")
-elif fp_reduction_best < cible_min:
-    print(f"-> Le modele gagnant ({nom_gagnant}) est SOUS la fourchette : a documenter honnetement dans le rapport.")
+# honest placement against the 60-80 % reference range
+target_min = 60.0
+target_max = 80.0
+in_target_best = (fp_reduction_best >= target_min) and (fp_reduction_best <= target_max)
+in_target_iso = (fp_reduction_iso >= target_min) and (fp_reduction_iso <= target_max)
+print(f"\nReference: FP reduction between {target_min:.0f} % and {target_max:.0f} %")
+print(f"{winner_name} within the 60-80 % range    : {in_target_best}")
+print(f"Isolation Forest within the 60-80 % range : {in_target_iso}")
+if fp_reduction_best > target_max:
+    print(f"-> The winning model ({winner_name}) EXCEEDS the range (even stronger reduction): favorable result.")
+elif fp_reduction_best < target_min:
+    print(f"-> The winning model ({winner_name}) is BELOW the range: to be documented honestly in the report.")
 
 # %% [markdown]
-# ## 7. Importance globale des features (modele gagnant)
+# ## 7. Global feature importance (winning model)
 #
-# On explique le modele gagnant globalement. On recupere le modele final dans le
-# pipeline via `named_steps`. Selon le type de modele :
-# - s'il expose `feature_importances_` (arbres : RF / XGBoost / DecisionTree) on
-#   utilise l'importance native (gain / reduction d'impurete) ;
-# - s'il expose `coef_` (LogReg / LinearSVC) on utilise la valeur absolue des
-#   coefficients ;
-# - sinon (GaussianNB / KNN) on calcule une `permutation_importance` sur un
-#   echantillon (~5000 lignes) du test.
-# On affiche les 20 features les plus importantes.
+# We explain the winning model globally. We get the final model in the pipeline
+# via `named_steps`. Depending on the model type:
+# - if it exposes `feature_importances_` (trees: RF / XGBoost / DecisionTree) we
+#   use the native importance (gain / impurity reduction);
+# - if it exposes `coef_` (LogReg / LinearSVC) we use the absolute value of the
+#   coefficients;
+# - otherwise (GaussianNB / KNN) we compute a `permutation_importance` on a
+#   sample (~5000 rows) of the test set.
+# We show the 20 most important features.
 
 # %%
-# 7a. Recuperation du modele final dans le pipeline gagnant (derniere etape de named_steps)
+# get the final model in the winning pipeline (last step of named_steps)
 if hasattr(best_model, "named_steps"):
-    nom_etape_finale = list(best_model.named_steps.keys())[-1]
-    modele_final = best_model.named_steps[nom_etape_finale]
+    final_step_name = list(best_model.named_steps.keys())[-1]
+    final_model = best_model.named_steps[final_step_name]
 else:
-    modele_final = best_model
-print(f"Modele final dans le pipeline : {type(modele_final).__name__}")
+    final_model = best_model
+print(f"Final model in the pipeline: {type(final_model).__name__}")
 
-# 7b. Calcul de l'importance selon le type de modele
-if hasattr(modele_final, "feature_importances_"):
-    methode_importance = "feature_importances_ (gain / impurete)"
-    importances = pd.Series(modele_final.feature_importances_, index=features).sort_values(ascending=False)
-elif hasattr(modele_final, "coef_"):
-    methode_importance = "valeur absolue des coefficients (|coef_|)"
-    coefs = np.ravel(modele_final.coef_)
+# compute the importance depending on the model type
+if hasattr(final_model, "feature_importances_"):
+    importance_method = "feature_importances_ (gain / impurity)"
+    importances = pd.Series(final_model.feature_importances_, index=features).sort_values(ascending=False)
+elif hasattr(final_model, "coef_"):
+    importance_method = "absolute value of coefficients (|coef_|)"
+    coefs = np.ravel(final_model.coef_)
     importances = pd.Series(np.abs(coefs), index=features).sort_values(ascending=False)
 else:
-    methode_importance = "permutation_importance (echantillon ~5000 lignes)"
-    # Echantillon stratifie d'environ 5000 lignes du test pour limiter le cout
+    importance_method = "permutation_importance (~5000 rows sample)"
+    # stratified sample of about 5000 test rows to limit the cost
     n_perm = 5000
     df_perm = df.groupby("Label_binary", group_keys=False).sample(
         n=min(n_perm // 2, int(y_true.value_counts().min())), random_state=42
@@ -326,15 +323,15 @@ else:
                                   n_repeats=5, random_state=42, n_jobs=-1)
     importances = pd.Series(perm.importances_mean, index=features).sort_values(ascending=False)
 
-print(f"Methode d'explicabilite globale utilisee : {methode_importance}")
+print(f"Global explainability method used: {importance_method}")
 top20 = importances.head(20)
-print("=== Top 20 des features par importance (modele gagnant) ===")
+print("=== Top 20 features by importance (winning model) ===")
 print(top20.round(4).to_string())
 
-# 7c. Bar chart des 20 features les plus importantes
+# bar chart of the 20 most important features
 plt.figure(figsize=(10, 8))
 sns.barplot(x=top20.values, y=top20.index, color="seagreen")
-plt.title("Importance globale des 20 principales features - " + nom_gagnant + "\n(" + methode_importance + ")")
+plt.title("Global importance of the top 20 features - " + winner_name + "\n(" + importance_method + ")")
 plt.xlabel("Importance")
 plt.ylabel("Feature")
 plt.tight_layout()
@@ -342,161 +339,160 @@ plt.savefig(BASE + "/reports/figures/09_importance_features.png", dpi=120)
 plt.show()
 
 # %% [markdown]
-# ## 8. Explicabilite par alerte : "pourquoi cette alerte"
+# ## 8. Per-alert explainability: "why this alert"
 #
-# Pour rendre les alertes exploitables par un analyste, on explique quelques
-# flux d'attaque CORRECTEMENT detectes par le modele gagnant. Pour chaque flux,
-# on prend les features les plus importantes du modele et on compare la valeur
-# du flux a la moyenne du trafic BENIGN (benign_means). Les barres rouges
-# mettent en evidence les features dont la valeur s'ecarte fortement du normal :
-# ce sont les raisons de l'alerte.
+# To make alerts actionable for an analyst, we explain a few attack flows
+# CORRECTLY detected by the winning model. For each flow, we take the most
+# important features of the model and compare the flow's value to the mean of the
+# BENIGN traffic (benign_means). The red bars highlight the features whose value
+# strongly deviates from normal: these are the reasons for the alert.
 
 # %%
-# 8a. Selection de flux d'attaque bien detectes par le gagnant (un par famille d'attaque)
-# Conditions : vraie attaque (Label_binary == 1), bien predit attaque par le gagnant,
-# avec un score de risque eleve. On en choisit un par famille pour varier les cas.
+# select attack flows well detected by the winner (one per attack family)
+# conditions: true attack (Label_binary == 1), correctly predicted attack by the winner,
+# with a high risk score. We pick one per family to vary the cases.
 df_eval = df.copy()
 df_eval["pred_best"] = y_pred_best
 df_eval["proba_best"] = proba_best
 
-# Familles d'attaque ciblees (presentes dans le test, volumes suffisants)
-familles_cibles = ["DoS", "DDoS", "PortScan"]
-indices_alertes = []
-for famille in familles_cibles:
-    masque = (df_eval["Label_group"] == famille) & (df_eval["Label_binary"] == 1) & (df_eval["pred_best"] == 1)
-    candidats = df_eval[masque]
-    if len(candidats) > 0:
-        # Le flux le plus "confiant" (score de risque le plus eleve) de la famille
-        idx = candidats["proba_best"].idxmax()
-        indices_alertes.append(idx)
+# targeted attack families (present in the test set, enough volume)
+target_families = ["DoS", "DDoS", "PortScan"]
+alert_indices = []
+for family in target_families:
+    mask = (df_eval["Label_group"] == family) & (df_eval["Label_binary"] == 1) & (df_eval["pred_best"] == 1)
+    candidates = df_eval[mask]
+    if len(candidates) > 0:
+        # the most "confident" flow (highest risk score) of the family
+        idx = candidates["proba_best"].idxmax()
+        alert_indices.append(idx)
 
-print(f"Nombre de flux d'attaque selectionnes pour l'explicabilite : {len(indices_alertes)}")
-for idx in indices_alertes:
-    ligne = df_eval.loc[idx]
-    print(f"  - index {idx} | famille {ligne['Label_group']:10s} | label {ligne['Label']:20s} | score de risque {ligne['proba_best']:.4f}")
+print(f"Number of attack flows selected for explainability: {len(alert_indices)}")
+for idx in alert_indices:
+    row = df_eval.loc[idx]
+    print(f"  - index {idx} | family {row['Label_group']:10s} | label {row['Label']:20s} | risk score {row['proba_best']:.4f}")
 
 # %%
-# 8b. Top features par importance retenues pour l'explication
-n_top_explic = 8
-top_features_explic = importances.head(n_top_explic).index.tolist()
-print(f"Features utilisees pour l'explication (top {n_top_explic} par importance) :")
-print(top_features_explic)
+# top features by importance kept for the explanation
+n_top_explain = 8
+top_features_explain = importances.head(n_top_explain).index.tolist()
+print(f"Features used for the explanation (top {n_top_explain} by importance):")
+print(top_features_explain)
 
-# 8c. Subplots : un graphique par flux, comparaison valeur du flux vs moyenne BENIGN
-nb_alertes = len(indices_alertes)
-fig, axs = plt.subplots(1, nb_alertes, figsize=(7 * nb_alertes, 6))
-# Si une seule alerte, axs n'est pas un tableau : on l'enveloppe pour la boucle
-if nb_alertes == 1:
+# subplots: one chart per flow, flow value vs BENIGN mean comparison
+n_alerts = len(alert_indices)
+fig, axs = plt.subplots(1, n_alerts, figsize=(7 * n_alerts, 6))
+# if a single alert, axs is not an array: wrap it for the loop
+if n_alerts == 1:
     axs = [axs]
 
-for i, idx in enumerate(indices_alertes):
-    ligne = df_eval.loc[idx]
-    # Valeurs du flux et moyennes BENIGN sur les top features
-    valeurs_flux = X.loc[idx, top_features_explic].astype(float)
-    valeurs_benign = benign_means[top_features_explic].astype(float)
+for i, idx in enumerate(alert_indices):
+    row = df_eval.loc[idx]
+    # flow values and BENIGN means on the top features
+    flow_values = X.loc[idx, top_features_explain].astype(float)
+    benign_values = benign_means[top_features_explain].astype(float)
 
-    # Tableau lisible imprime (valeur flux vs normal moyen + ratio)
-    tableau = pd.DataFrame({
-        "Flux (alerte)": valeurs_flux,
-        "Moyenne BENIGN": valeurs_benign,
+    # readable printed table (flow value vs mean normal + ratio)
+    table = pd.DataFrame({
+        "Flow (alert)": flow_values,
+        "BENIGN mean": benign_values,
     })
-    tableau["Ratio flux / BENIGN"] = tableau["Flux (alerte)"] / tableau["Moyenne BENIGN"].replace(0, np.nan)
-    print(f"\n=== Pourquoi cette alerte ? Flux index {idx} - {ligne['Label']} (famille {ligne['Label_group']}) ===")
-    print(f"Score de risque {nom_gagnant} : {ligne['proba_best']:.4f}")
-    print(tableau.round(4).to_string())
+    table["Flow / BENIGN ratio"] = table["Flow (alert)"] / table["BENIGN mean"].replace(0, np.nan)
+    print(f"\n=== Why this alert? Flow index {idx} - {row['Label']} (family {row['Label_group']}) ===")
+    print(f"{winner_name} risk score: {row['proba_best']:.4f}")
+    print(table.round(4).to_string())
 
-    # Mise en evidence des features anormales : ecart relatif > 2x la moyenne BENIGN
-    ratio = (valeurs_flux / valeurs_benign.replace(0, np.nan)).abs()
-    couleurs = ["crimson" if (pd.notna(r) and r > 2.0) else "steelblue" for r in ratio]
+    # highlight the abnormal features: relative deviation > 2x the BENIGN mean
+    ratio = (flow_values / benign_values.replace(0, np.nan)).abs()
+    colors = ["crimson" if (pd.notna(r) and r > 2.0) else "steelblue" for r in ratio]
 
-    # Barres groupees : flux vs BENIGN par feature
-    y_pos = np.arange(len(top_features_explic))
-    hauteur = 0.4
-    axs[i].barh(y_pos + hauteur / 2, valeurs_flux.values, height=hauteur,
-                color=couleurs, label="Flux (alerte)")
-    axs[i].barh(y_pos - hauteur / 2, valeurs_benign.values, height=hauteur,
-                color="lightgray", label="Moyenne BENIGN")
+    # grouped bars: flow vs BENIGN per feature
+    y_pos = np.arange(len(top_features_explain))
+    height = 0.4
+    axs[i].barh(y_pos + height / 2, flow_values.values, height=height,
+                color=colors, label="Flow (alert)")
+    axs[i].barh(y_pos - height / 2, benign_values.values, height=height,
+                color="lightgray", label="BENIGN mean")
     axs[i].set_yticks(y_pos)
-    axs[i].set_yticklabels(top_features_explic)
+    axs[i].set_yticklabels(top_features_explain)
     axs[i].invert_yaxis()
-    axs[i].set_xlabel("Valeur (echelle brute)")
-    axs[i].set_title(f"Alerte {ligne['Label_group']} - {ligne['Label']}\nscore de risque {ligne['proba_best']:.3f}")
+    axs[i].set_xlabel("Value (raw scale)")
+    axs[i].set_title(f"Alert {row['Label_group']} - {row['Label']}\nrisk score {row['proba_best']:.3f}")
     axs[i].legend(loc="lower right")
 
-plt.suptitle("Pourquoi cette alerte ? Valeur du flux suspect vs trafic BENIGN moyen (rouge = anormal)")
+plt.suptitle("Why this alert? Suspicious flow value vs mean BENIGN traffic (red = abnormal)")
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/10_explication_alerte.png", dpi=120)
 plt.show()
 
 # %% [markdown]
-# ## 9. Sauvegarde de toutes les metriques chiffrees
+# ## 9. Saving all the numeric metrics
 #
-# On serialise dans reports/metrics.json : le classement du bake-off (les 7 F1
-# CV), le nom du modele selectionne, les metriques de test des trois approches
-# (precision, recall, f1, accuracy, faux positifs, taux de faux positifs) et les
-# reductions de faux positifs (gagnant + iso) par rapport a la baseline de regles.
+# We serialize to reports/metrics.json: the bake-off ranking (the 7 CV F1), the
+# name of the selected model, the test metrics of the three approaches
+# (precision, recall, f1, accuracy, false positives, false positive rate) and the
+# false positive reductions (winner + iso) versus the rules baseline.
 
 # %%
-# 9a. Metriques de test par approche (boucle sur le dict de predictions)
+# test metrics per approach (loop over the predictions dict)
 metrics = {}
 metrics_test = {}
-for nom in modeles:
-    y_pred = predictions[nom]
-    bloc = {
+for name in models:
+    y_pred = predictions[name]
+    block = {
         "precision": round(float(precision_score(y_true, y_pred, zero_division=0)), 4),
         "recall": round(float(recall_score(y_true, y_pred, zero_division=0)), 4),
         "f1": round(float(f1_score(y_true, y_pred, zero_division=0)), 4),
         "accuracy": round(float(accuracy_score(y_true, y_pred)), 4),
-        "fp": fp_par_modele[nom],
-        "fp_rate": round(float(fp_rate_par_modele[nom]), 4),
+        "fp": fp_per_model[name],
+        "fp_rate": round(float(fp_rate_per_model[name]), 4),
     }
-    metrics[nom] = bloc
-    metrics_test[nom] = bloc
+    metrics[name] = block
+    metrics_test[name] = block
 
-# 9b. Bloc bake-off : F1 CV moyen/std + selected pour les 7 modeles
+# bake-off block: mean/std CV F1 + selected for the 7 models
 metrics["bakeoff"] = {}
-for nom, res in cv_results.items():
-    metrics["bakeoff"][nom] = {
+for name, res in cv_results.items():
+    metrics["bakeoff"][name] = {
         "cv_f1_mean": res["cv_f1_mean"],
         "cv_f1_std": res["cv_f1_std"],
         "selected": res["selected"],
     }
 
-# 9c. Modele selectionne, reductions de FP et fourchette de reference
-metrics["selected_model"] = nom_gagnant
+# selected model, FP reductions and reference range
+metrics["selected_model"] = winner_name
 metrics["fp_reduction_best"] = round(float(fp_reduction_best), 4)
 metrics["fp_reduction_iso"] = round(float(fp_reduction_iso), 4)
 metrics["target_60_80"] = {
-    "cible_min": cible_min,
-    "cible_max": cible_max,
-    "best_dans_cible": bool(dans_cible_best),
-    "iso_dans_cible": bool(dans_cible_iso),
+    "cible_min": target_min,
+    "cible_max": target_max,
+    "best_dans_cible": bool(in_target_best),
+    "iso_dans_cible": bool(in_target_iso),
 }
-# Bloc test regroupe (pratique pour le dashboard de la Phase 5)
+# grouped test block (handy for the Phase 5 dashboard)
 metrics["test"] = metrics_test
 
-with open(BASE + "/reports/metrics.json", "w") as fichier:
-    json.dump(metrics, fichier, indent=2, ensure_ascii=False)
+with open(BASE + "/reports/metrics.json", "w") as f:
+    json.dump(metrics, f, indent=2, ensure_ascii=False)
 
-print("Metriques sauvegardees -> reports/metrics.json")
+print("Metrics saved -> reports/metrics.json")
 print(json.dumps(metrics, indent=2, ensure_ascii=False))
 
 # %% [markdown]
-# ## 10. Synthese finale
+# ## 10. Final summary
 #
-# Recapitulatif en clair du bake-off, de la comparaison des trois approches sur
-# le test et de la reduction des faux positifs.
+# Plain recap of the bake-off, the comparison of the three approaches on the test
+# set and the false positive reduction.
 
 # %%
-# 10. Synthese finale imprimee
-print("=== Synthese finale - Phase 4 ===")
-print(f"Modele gagnant du bake-off : {nom_gagnant} "
-      f"(F1 CV {best_model_meta['cv_f1_mean']:.4f} +/- {best_model_meta['cv_f1_std']:.4f})")
-print("\nComparaison sur le jeu de test :")
-print(df_comparaison.round(4).to_string(index=False))
-print(f"\nReduction des faux positifs ({nom_gagnant} vs Regles)    : {fp_reduction_best:.4f} %")
-print(f"Reduction des faux positifs (Isolation Forest vs Regles) : {fp_reduction_iso:.4f} %")
-print(f"Methode d'explicabilite globale : {methode_importance}")
-print("\nFigures generees : 06_cm_regles, 07_cm_isolation_forest, 08_cm_best_model, "
+# final printed summary
+print("=== Final summary - Phase 4 ===")
+print(f"Bake-off winning model: {winner_name} "
+      f"(CV F1 {best_model_meta['cv_f1_mean']:.4f} +/- {best_model_meta['cv_f1_std']:.4f})")
+print("\nComparison on the test set:")
+print(df_comparison.round(4).to_string(index=False))
+print(f"\nFalse positive reduction ({winner_name} vs Rules)         : {fp_reduction_best:.4f} %")
+print(f"False positive reduction (Isolation Forest vs Rules) : {fp_reduction_iso:.4f} %")
+print(f"Global explainability method: {importance_method}")
+print("\nGenerated figures: 06_cm_regles, 07_cm_isolation_forest, 08_cm_best_model, "
       "09_importance_features, 10_explication_alerte, 11_bakeoff_cv_f1 (reports/figures/).")
-print("Metriques chiffrees : reports/metrics.json")
+print("Numeric metrics: reports/metrics.json")
