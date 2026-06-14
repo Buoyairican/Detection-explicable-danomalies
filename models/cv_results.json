@@ -1,0 +1,68 @@
+{
+  "LinearSVC": {
+    "cv_f1_mean": 0.8525,
+    "cv_f1_std": 0.004,
+    "tuned_cv_f1": 0.8588,
+    "best_params": {
+      "linearsvc__C": 3
+    },
+    "selected": false
+  },
+  "DecisionTree": {
+    "cv_f1_mean": 0.8567,
+    "cv_f1_std": 0.0041,
+    "tuned_cv_f1": 0.9937,
+    "best_params": {
+      "decisiontreeclassifier__max_depth": 20
+    },
+    "selected": false
+  },
+  "LogisticRegression": {
+    "cv_f1_mean": 0.8597,
+    "cv_f1_std": 0.0051,
+    "tuned_cv_f1": 0.8713,
+    "best_params": {
+      "logisticregression__C": 20
+    },
+    "selected": false
+  },
+  "GaussianNB": {
+    "cv_f1_mean": 0.377,
+    "cv_f1_std": 0.016,
+    "tuned_cv_f1": 0.4264,
+    "best_params": {
+      "gaussiannb__var_smoothing": 0.0001
+    },
+    "selected": false
+  },
+  "RandomForest": {
+    "cv_f1_mean": 0.9947,
+    "cv_f1_std": 0.0008,
+    "tuned_cv_f1": 0.9949,
+    "best_params": {
+      "randomforestclassifier__max_depth": null,
+      "randomforestclassifier__n_estimators": 300
+    },
+    "selected": false
+  },
+  "XGBoost": {
+    "cv_f1_mean": 0.9964,
+    "cv_f1_std": 0.0005,
+    "tuned_cv_f1": 0.9964,
+    "best_params": {
+      "xgbclassifier__learning_rate": 0.1,
+      "xgbclassifier__max_depth": 8,
+      "xgbclassifier__n_estimators": 300
+    },
+    "selected": true
+  },
+  "KNN": {
+    "cv_f1_mean": 0.9695,
+    "cv_f1_std": 0.0066,
+    "tuned_cv_f1": 0.9739,
+    "best_params": {
+      "kneighborsclassifier__n_neighbors": 1
+    },
+    "selected": false
+  }
+}

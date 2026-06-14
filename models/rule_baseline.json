@@ -1,0 +1,41 @@
+{
+  "description": "Baseline de regles statiques sur features brutes. Une ligne est flaggee comme attaque si AU MOINS une regle se declenche (OR logique). Seuils choisis proches des 95e/99e percentiles du trafic BENIGN du train. Baseline volontairement simpliste, taux de faux positifs eleve attendu.",
+  "logique": "OR",
+  "regles": [
+    {
+      "feature": "Average Packet Size",
+      "operateur": ">",
+      "seuil": 496.0,
+      "justification": "Taille moyenne de paquet elevee typique des floods DoS/DDoS a payload."
+    },
+    {
+      "feature": "Bwd Packets/s",
+      "operateur": ">",
+      "seuil": 58823.0,
+      "justification": "Debit de paquets retour eleve (99e percentile du BENIGN)."
+    },
+    {
+      "feature": "Flow Packets/s",
+      "operateur": ">",
+      "seuil": 500000.0,
+      "justification": "Debit de paquets total tres eleve (95e percentile du BENIGN)."
+    },
+    {
+      "feature_1": "Total Fwd Packets",
+      "operateur_1": "<=",
+      "seuil_1": 3,
+      "feature_2": "Flow Duration",
+      "operateur_2": ">",
+      "seuil_2": 1000000.0,
+      "justification": "Tres peu de paquets aller mais flux long : connexions de sonde/lentes."
+    },
+    {
+      "feature": "Flow Bytes/s",
+      "operateur": ">",
+      "seuil": 12000000.0,
+      "justification": "Debit d'octets tres eleve (99e percentile du BENIGN)."
+    }
+  ],
+  "recall_attaque_test": 0.6142,
+  "faux_positifs_test": 97654
+}
