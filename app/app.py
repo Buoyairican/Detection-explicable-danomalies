@@ -1,9 +1,9 @@
-# Dashboard SOC — Détection explicable d'anomalies (CICIDS2017)
-# Phase 5 : application Streamlit pour l'analyste.
-# Style notebook : code plat, commentaires en français, étapes numérotées.
-# Exception autorisée : quelques fonctions minimales pour le cache de chargement.
+# SOC dashboard — Explainable anomaly detection (CICIDS2017)
+# Phase 5: Streamlit app for the analyst.
+# Notebook style: flat code, short English comments.
+# Allowed exception: a few minimal functions for cached loading.
 
-# Imports
+# imports
 import os
 import json
 import joblib
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Chemins absolus des artefacts (contrat de la Phase 3)
+# absolute artifact paths (Phase 3 contract)
 BASE = "/home/samouraifox/Work/stuff/S6/Notes_Ai/projet-final/model-building/Detection-explicable-danomalies"
 SCALER_PATH = BASE + "/models/scaler.pkl"
 BEST_MODEL_PATH = BASE + "/models/best_model.pkl"
@@ -23,10 +23,10 @@ SAMPLE_PATH = BASE + "/data/processed/app_sample.parquet"
 FEEDBACK_PATH = BASE + "/app/feedback.csv"
 
 
-# 1. Chargement (en cache) des modèles et artefacts
+# 1. load the models and artifacts (cached)
 @st.cache_resource
-def charger_modeles():
-    # Scaler (pour mettre à l'échelle avant prédiction) + modèle retenu + métadonnées
+def load_models():
+    # scaler (to scale before prediction) + best model + metadata
     scaler = joblib.load(SCALER_PATH)
     best_model = joblib.load(BEST_MODEL_PATH)
     with open(BEST_META_PATH, "r") as f:
@@ -39,29 +39,29 @@ def charger_modeles():
 
 
 @st.cache_data
-def charger_echantillon():
-    # Échantillon stratifié du test (features brutes + labels)
+def load_sample():
+    # stratified test sample (raw features + labels)
     df = pd.read_parquet(SAMPLE_PATH)
     return df
 
 
-# Petite fonction utilitaire : verdict des règles statiques sur une ligne BRUTE
-def verdict_regles(row, rules):
-    # Logique OU : une seule règle déclenchée suffit pour flagger en attaque
+# small helper: static rule verdict on a raw row
+def rule_verdict(row, rules):
+    # OR logic: a single fired rule is enough to flag an attack
     detail = []
-    declenche = False
-    # 2. Parcours des règles décrites dans rule_baseline.json
+    fired = False
+    # go through the rules described in rule_baseline.json (French keys kept)
     for r in rules["regles"]:
         if "feature" in r:
-            # Règle simple : feature OP seuil
-            valeur = row[r["feature"]]
+            # simple rule: feature OP threshold
+            value = row[r["feature"]]
             if r["operateur"] == ">":
-                ok = valeur > r["seuil"]
+                ok = value > r["seuil"]
             else:
-                ok = valeur < r["seuil"]
-            nom = f"{r['feature']} {r['operateur']} {r['seuil']:.0f}"
+                ok = value < r["seuil"]
+            label = f"{r['feature']} {r['operateur']} {r['seuil']:.0f}"
         else:
-            # Règle composée : feature_1 OP seuil_1 ET feature_2 OP seuil_2
+            # compound rule: feature_1 OP threshold_1 AND feature_2 OP threshold_2
             v1 = row[r["feature_1"]]
             v2 = row[r["feature_2"]]
             if r["operateur_1"] == ">":
@@ -73,260 +73,259 @@ def verdict_regles(row, rules):
             else:
                 ok2 = v2 <= r["seuil_2"]
             ok = ok1 and ok2
-            nom = (
-                f"{r['feature_1']} {r['operateur_1']} {r['seuil_1']:.0f} ET "
+            label = (
+                f"{r['feature_1']} {r['operateur_1']} {r['seuil_1']:.0f} AND "
                 f"{r['feature_2']} {r['operateur_2']} {r['seuil_2']:.0f}"
             )
         if ok:
-            declenche = True
-        detail.append({"Règle": nom, "Déclenchée": "Oui" if ok else "Non"})
-    return declenche, detail
+            fired = True
+        detail.append({"Rule": label, "Fired": "Yes" if ok else "No"})
+    return fired, detail
 
 
-# Chargement effectif
-scaler, best_model, best_meta, features, benign_means, rules = charger_modeles()
-df = charger_echantillon()
+# actual loading
+scaler, best_model, best_meta, features, benign_means, rules = load_models()
+df = load_sample()
 
-# Nom du modèle gagnant (issu du bake-off de la Phase 3)
-nom_modele = best_meta["name"]
+# name of the best model (from the Phase 3 bake-off)
+model_name = best_meta["name"]
 
-# Configuration de la page
-st.set_page_config(page_title="SOC — Détection d'anomalies CICIDS2017", layout="wide")
+# page configuration
+st.set_page_config(page_title="SOC — CICIDS2017 anomaly detection", layout="wide")
 
-# 3. Titre et courte introduction
-st.title("Détection explicable d'anomalies réseau — Tableau de bord SOC")
+# 2. title and short introduction
+st.title("Explainable network anomaly detection — SOC dashboard")
 st.markdown(
-    f"Cet outil aide l'analyste à **trier les flux réseau** du jeu CICIDS2017. "
-    f"Pour chaque flux on compare deux approches (règles statiques et "
-    f"**{nom_modele}** retenu en Phase 3), on affiche un **score de risque** et on "
-    f"explique **pourquoi** une alerte se déclenche. Les vrais labels sont montrés à "
-    f"titre indicatif seulement."
+    f"This tool helps the analyst **triage network flows** from the CICIDS2017 dataset. "
+    f"For each flow we compare two approaches (static rules and **{model_name}**, kept in "
+    f"Phase 3), show a **risk score** and explain **why** an alert fires. The true labels are "
+    f"shown for reference only."
 )
-# Modèle retenu par le bake-off (F1 de validation croisée)
+# model kept by the bake-off (cross-validation F1)
 st.success(
-    f"Modèle retenu : **{nom_modele}** "
-    f"(F1 CV = {best_meta['cv_f1_mean']:.4f} ± {best_meta['cv_f1_std']:.4f})"
+    f"Model kept: **{model_name}** "
+    f"(CV F1 = {best_meta['cv_f1_mean']:.4f} ± {best_meta['cv_f1_std']:.4f})"
 )
 
-# 4. Barre latérale : sélection du flux à inspecter
-st.sidebar.header("Sélection du flux")
+# 3. sidebar: pick the flow to inspect
+st.sidebar.header("Flow selection")
 
-# Filtre optionnel par famille (Label_group)
-familles = ["Toutes"] + sorted(df["Label_group"].unique().tolist())
-famille = st.sidebar.selectbox("Filtrer par famille (Label_group)", familles)
+# optional filter by family (Label_group)
+families = ["All"] + sorted(df["Label_group"].unique().tolist())
+family = st.sidebar.selectbox("Filter by family (Label_group)", families)
 
-# Sous-ensemble des index disponibles selon le filtre
-if famille == "Toutes":
-    index_dispo = df.index.tolist()
+# subset of available indices given the filter
+if family == "All":
+    available_idx = df.index.tolist()
 else:
-    index_dispo = df[df["Label_group"] == famille].index.tolist()
+    available_idx = df[df["Label_group"] == family].index.tolist()
 
-# Initialisation de l'index courant en mémoire de session
-if "flux_idx" not in st.session_state:
-    st.session_state.flux_idx = index_dispo[0]
+# keep the current index in session state
+if "flow_idx" not in st.session_state:
+    st.session_state.flow_idx = available_idx[0]
 
-# Bouton flux aléatoire : tire un index dans le sous-ensemble filtré
-if st.sidebar.button("Flux aléatoire"):
-    st.session_state.flux_idx = int(np.random.choice(index_dispo))
+# random flow button: draw an index from the filtered subset
+if st.sidebar.button("Random flow"):
+    st.session_state.flow_idx = int(np.random.choice(available_idx))
 
-# Si l'index courant n'est plus dans le filtre, on le ramène au premier dispo
-if st.session_state.flux_idx not in index_dispo:
-    st.session_state.flux_idx = index_dispo[0]
+# if the current index is no longer in the filter, reset it to the first available
+if st.session_state.flow_idx not in available_idx:
+    st.session_state.flow_idx = available_idx[0]
 
-# Sélecteur de l'index du flux dans le sous-ensemble filtré
-flux_idx = st.sidebar.selectbox(
-    "Index du flux à inspecter",
-    index_dispo,
-    index=index_dispo.index(st.session_state.flux_idx),
+# selector for the flow index in the filtered subset
+flow_idx = st.sidebar.selectbox(
+    "Flow index to inspect",
+    available_idx,
+    index=available_idx.index(st.session_state.flow_idx),
 )
-st.session_state.flux_idx = flux_idx
+st.session_state.flow_idx = flow_idx
 
-st.sidebar.caption(f"{len(index_dispo)} flux disponibles dans la sélection.")
+st.sidebar.caption(f"{len(available_idx)} flows available in the selection.")
 
-# 5. Calculs pour le flux choisi
-# Ligne brute sélectionnée
-row = df.loc[flux_idx]
+# 4. computations for the selected flow
+# selected raw row
+row = df.loc[flow_idx]
 
-# Features brutes du flux, puis mise à l'échelle (le modèle attend des features scalées)
-X = df.loc[[flux_idx], features]
+# raw flow features, then scaling (the model expects scaled features)
+X = df.loc[[flow_idx], features]
 Xs = scaler.transform(X)
 
-# Verdict du modèle retenu + score de risque (probabilité d'attaque en %)
-best_pred = int(best_model.predict(Xs)[0])  # 0 = BENIGN, 1 = attaque
-score_risque = float(best_model.predict_proba(Xs)[:, 1][0]) * 100.0
+# best model verdict + risk score (attack probability in %)
+best_pred = int(best_model.predict(Xs)[0])  # 0 = BENIGN, 1 = attack
+risk_score = float(best_model.predict_proba(Xs)[:, 1][0]) * 100.0
 
-# Verdict des règles statiques (sur features BRUTES)
-regle_flag, regle_detail = verdict_regles(row, rules)
+# static rule verdict (on raw features)
+rule_flag, rule_detail = rule_verdict(row, rules)
 
-# Vraie famille du flux (à titre indicatif)
-vraie_famille = row["Label_group"]
-vrai_label = row["Label"]
+# true family of the flow (for reference)
+true_family = row["Label_group"]
+true_label = row["Label"]
 
-# 6. Panneau VERDICT
-st.header(f"Verdict du modèle principal ({nom_modele})")
+# 5. VERDICT panel
+st.header(f"Main model verdict ({model_name})")
 col_a, col_b, col_c = st.columns([2, 2, 2])
 
 with col_a:
-    # Badge clair vert/rouge selon le verdict du gagnant
+    # clear green/red badge based on the model verdict
     if best_pred == 1:
-        st.error("ANOMALIE — flux suspect")
+        st.error("ANOMALY — suspicious flow")
     else:
-        st.success("NORMAL — flux bénin")
+        st.success("NORMAL — benign flow")
 
 with col_b:
-    # Score de risque affiché en métrique + barre de progression
-    st.metric("Score de risque (proba attaque)", f"{score_risque:.2f} %")
-    st.progress(min(int(round(score_risque)), 100))
+    # risk score shown as a metric + progress bar
+    st.metric("Risk score (attack proba)", f"{risk_score:.2f} %")
+    st.progress(min(int(round(risk_score)), 100))
 
 with col_c:
-    # Vraie famille à titre indicatif (ne sert pas à la décision)
-    st.metric("Vraie famille (indicatif)", vraie_famille)
-    st.caption(f"Label détaillé : {vrai_label}")
+    # true family for reference (not used for the decision)
+    st.metric("True family (reference)", true_family)
+    st.caption(f"Detailed label: {true_label}")
 
-# 7. Panneau COMPARAISON des deux approches
-st.header("Comparaison des deux approches")
+# 6. COMPARISON panel (two approaches)
+st.header("Comparison of the two approaches")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Règles statiques")
-    if regle_flag:
-        st.error("ANOMALIE")
+    st.subheader("Static rules")
+    if rule_flag:
+        st.error("ANOMALY")
     else:
         st.success("NORMAL")
-    st.caption("Logique OU sur seuils bruts (baseline simpliste).")
+    st.caption("OR logic on raw thresholds (simplistic baseline).")
 
 with col2:
-    st.subheader(nom_modele)
+    st.subheader(model_name)
     if best_pred == 1:
-        st.error("ANOMALIE")
+        st.error("ANOMALY")
     else:
         st.success("NORMAL")
-    st.caption(f"Score de risque : {score_risque:.2f} %.")
+    st.caption(f"Risk score: {risk_score:.2f} %.")
 
-# Détail des règles déclenchées
-with st.expander("Détail des règles statiques"):
-    df_regles = pd.DataFrame(regle_detail)
-    st.dataframe(df_regles, hide_index=True, use_container_width=True)
+# detail of the fired rules
+with st.expander("Static rules detail"):
+    df_rules = pd.DataFrame(rule_detail)
+    st.dataframe(df_rules, hide_index=True, use_container_width=True)
 
-# 8. Panneau POURQUOI CETTE ALERTE
-st.header("Pourquoi cette alerte ? (explicabilité)")
+# 7. WHY THIS ALERT panel
+st.header("Why this alert? (explainability)")
 st.markdown(
-    f"On affiche les features les plus importantes pour **{nom_modele}**, en comparant "
-    f"la **valeur du flux** à la **moyenne du trafic BENIGN** d'entraînement. "
-    f"Les features dont la valeur s'écarte fortement de la moyenne bénigne sont surlignées."
+    f"We show the most important features for **{model_name}**, comparing the "
+    f"**flow value** to the **mean of the BENIGN** training traffic. "
+    f"Features whose value deviates strongly from the benign mean are highlighted."
 )
 
-# Nombre de features à expliquer (curseur)
-top_n = st.slider("Nombre de features à expliquer", 5, 20, 10)
+# number of features to explain (slider)
+top_n = st.slider("Number of features to explain", 5, 20, 10)
 
-# Importances du modèle retenu (directement sur le modèle)
-modele_final = best_model
-if hasattr(modele_final, "feature_importances_"):
-    # Arbres / gradient boosting : importances natives
-    poids = np.asarray(modele_final.feature_importances_)
-    libelle_importance = "Importance"
-elif hasattr(modele_final, "coef_"):
-    # Modèle linéaire : on prend la valeur absolue des coefficients
-    poids = np.abs(np.ravel(modele_final.coef_))
-    libelle_importance = "Importance (|coef|)"
+# importances of the best model (directly on the model)
+final_model = best_model
+if hasattr(final_model, "feature_importances_"):
+    # trees / gradient boosting: native importances
+    weights = np.asarray(final_model.feature_importances_)
+    importance_label = "Importance"
+elif hasattr(final_model, "coef_"):
+    # linear model: absolute value of the coefficients
+    weights = np.abs(np.ravel(final_model.coef_))
+    importance_label = "Importance (|coef|)"
 else:
-    # Repli : importances uniformes (aucune info de poids exploitable)
-    poids = np.ones(len(features))
-    libelle_importance = "Importance (uniforme)"
+    # fallback: uniform importances (no usable weight info)
+    weights = np.ones(len(features))
+    importance_label = "Importance (uniform)"
 
-# Importances triées, on garde le top N
-importances = pd.Series(poids, index=features)
+# sorted importances, keep the top N
+importances = pd.Series(weights, index=features)
 top_features = importances.sort_values(ascending=False).head(top_n).index.tolist()
 
-# Construction du tableau de comparaison valeur flux vs moyenne BENIGN
-lignes = []
+# build the comparison table: flow value vs BENIGN mean
+rows = []
 for f in top_features:
     val = float(row[f])
-    moy = float(benign_means[f])
-    # Écart relatif (en multiples de la moyenne bénigne), évite la division par zéro
-    if moy != 0:
-        ecart = (val - moy) / abs(moy)
+    mean_val = float(benign_means[f])
+    # relative deviation (in multiples of the benign mean), avoid division by zero
+    if mean_val != 0:
+        deviation = (val - mean_val) / abs(mean_val)
     else:
-        ecart = 0.0 if val == 0 else np.inf
-    # On marque comme anormal un écart de plus de 100 % par rapport au BENIGN
-    anormal = abs(ecart) > 1.0
-    lignes.append(
+        deviation = 0.0 if val == 0 else np.inf
+    # flag as abnormal a deviation of more than 100% from BENIGN
+    abnormal = abs(deviation) > 1.0
+    rows.append(
         {
             "Feature": f,
-            libelle_importance: float(importances[f]),
-            "Valeur du flux": val,
-            "Moyenne BENIGN": moy,
-            "Écart relatif": ecart,
-            "Anormal": "Oui" if anormal else "Non",
+            importance_label: float(importances[f]),
+            "Flow value": val,
+            "BENIGN mean": mean_val,
+            "Relative deviation": deviation,
+            "Abnormal": "Yes" if abnormal else "No",
         }
     )
 
-df_explain = pd.DataFrame(lignes)
+df_explain = pd.DataFrame(rows)
 
 
-# Surlignage des lignes anormales (fond rouge clair)
-def surligner_anormal(ligne):
-    if ligne["Anormal"] == "Oui":
-        return ["background-color: #ffcccc"] * len(ligne)
-    return [""] * len(ligne)
+# highlight the abnormal rows (light red background)
+def highlight_abnormal(line):
+    if line["Abnormal"] == "Yes":
+        return ["background-color: #ffcccc"] * len(line)
+    return [""] * len(line)
 
 
-# Tableau stylé avec formatage numérique
+# styled table with numeric formatting
 style_explain = (
-    df_explain.style.apply(surligner_anormal, axis=1).format(
+    df_explain.style.apply(highlight_abnormal, axis=1).format(
         {
-            libelle_importance: "{:.4f}",
-            "Valeur du flux": "{:.2f}",
-            "Moyenne BENIGN": "{:.2f}",
-            "Écart relatif": "{:+.2f}",
+            importance_label: "{:.4f}",
+            "Flow value": "{:.2f}",
+            "BENIGN mean": "{:.2f}",
+            "Relative deviation": "{:+.2f}",
         }
     )
 )
 st.dataframe(style_explain, hide_index=True, use_container_width=True)
 
-# Graphique en barres : comparaison valeur flux vs moyenne BENIGN
-st.subheader("Comparaison graphique : flux vs moyenne BENIGN")
-df_bar = df_explain.set_index("Feature")[["Valeur du flux", "Moyenne BENIGN"]]
+# bar chart: flow value vs BENIGN mean
+st.subheader("Chart: flow vs BENIGN mean")
+df_bar = df_explain.set_index("Feature")[["Flow value", "BENIGN mean"]]
 st.bar_chart(df_bar)
 
-# 9. Panneau RETOUR ANALYSTE
-st.header("Retour de l'analyste")
+# 8. ANALYST FEEDBACK panel
+st.header("Analyst feedback")
 st.markdown(
-    f"Confirmez le verdict de **{nom_modele}** pour ce flux. Le retour est enregistré "
-    f"dans `app/feedback.csv` et pourra servir à améliorer le modèle."
+    f"Confirm the **{model_name}** verdict for this flow. The feedback is saved to "
+    f"`app/feedback.csv` and can be used to improve the model."
 )
 
-col_vp, col_fp = st.columns(2)
-clic_vp = col_vp.button("Vrai positif (alerte confirmée)")
-clic_fp = col_fp.button("Faux positif (fausse alerte)")
+col_tp, col_fp = st.columns(2)
+click_tp = col_tp.button("True positive (confirmed alert)")
+click_fp = col_fp.button("False positive (false alarm)")
 
-# Enregistrement du retour si l'un des deux boutons est cliqué
-if clic_vp or clic_fp:
-    retour = "Vrai positif" if clic_vp else "Faux positif"
-    # Ligne à ajouter au journal de feedback
-    nouvelle_ligne = pd.DataFrame(
+# save the feedback if one of the two buttons is clicked
+if click_tp or click_fp:
+    feedback_label = "True positive" if click_tp else "False positive"
+    # row to append to the feedback log
+    new_row = pd.DataFrame(
         [
             {
-                "index_flux": int(flux_idx),
-                "verdict_modele": "ANOMALIE" if best_pred == 1 else "NORMAL",
-                "score_risque": round(score_risque, 4),
-                "retour_analyste": retour,
+                "flow_index": int(flow_idx),
+                "model_verdict": "ANOMALY" if best_pred == 1 else "NORMAL",
+                "risk_score": round(risk_score, 4),
+                "analyst_feedback": feedback_label,
             }
         ]
     )
-    # Création de l'en-tête si le fichier n'existe pas encore, sinon ajout
+    # write the header if the file does not exist yet, otherwise append
     if os.path.exists(FEEDBACK_PATH):
-        nouvelle_ligne.to_csv(FEEDBACK_PATH, mode="a", header=False, index=False)
+        new_row.to_csv(FEEDBACK_PATH, mode="a", header=False, index=False)
     else:
-        nouvelle_ligne.to_csv(FEEDBACK_PATH, mode="w", header=True, index=False)
+        new_row.to_csv(FEEDBACK_PATH, mode="w", header=True, index=False)
     st.success(
-        f"Retour enregistré : flux {flux_idx} -> {retour} "
-        f"(verdict {nom_modele} : {'ANOMALIE' if best_pred == 1 else 'NORMAL'}, "
-        f"score {score_risque:.2f} %)."
+        f"Feedback saved: flow {flow_idx} -> {feedback_label} "
+        f"(verdict {model_name}: {'ANOMALY' if best_pred == 1 else 'NORMAL'}, "
+        f"score {risk_score:.2f} %)."
     )
 
-# Affichage du journal de feedback existant
+# show the existing feedback log
 if os.path.exists(FEEDBACK_PATH):
-    with st.expander("Voir le journal des retours enregistrés"):
+    with st.expander("View the saved feedback log"):
         df_feedback = pd.read_csv(FEEDBACK_PATH)
         st.dataframe(df_feedback, hide_index=True, use_container_width=True)
