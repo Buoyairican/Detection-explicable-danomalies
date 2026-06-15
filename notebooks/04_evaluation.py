@@ -192,14 +192,21 @@ plt.show()
 # %% [markdown]
 # ## Why this alert (per-flow explanation)
 #
-# For a few attack flows correctly detected by the best model, we compare the
-# flow value to the BENIGN mean on the top features. Red bars are the values that
-# deviate strongly from normal traffic: these are the reasons for the alert.
+# For one well-detected attack per family, we show how far each feature is from
+# normal traffic, measured in standard deviations from the BENIGN mean (z-score).
+# This puts every feature on the same scale. Bars beyond +/- 3 std are abnormal
+# (red) and point both ways: a feature can be abnormally high or abnormally low.
+# These abnormal features are the reasons for the alert.
 
 # %%
 df_eval = df.copy()
 df_eval["pred"] = y_pred_best
 df_eval["proba"] = proba_best
+
+# benign mean and std per feature (from the BENIGN flows of the test set)
+benign_mask = df["Label_binary"] == 0
+benign_mean = df.loc[benign_mask, features].mean()
+benign_std = df.loc[benign_mask, features].std().replace(0, np.nan)
 
 # one well-detected attack per family (highest risk score)
 target_families = ["DoS", "DDoS", "PortScan"]
@@ -210,28 +217,34 @@ for fam in target_families:
     if len(cand) > 0:
         alert_idx.append(cand["proba"].idxmax())
 
-top_features = importances.head(8).index.tolist()
-print("Top features used for the explanation:", top_features)
+threshold = 3.0   # abnormal if more than 3 std from the benign mean
+cap = 12.0        # cap the displayed deviation so the chart stays readable
 
 fig, axs = plt.subplots(1, len(alert_idx), figsize=(7 * len(alert_idx), 6))
 if len(alert_idx) == 1:
     axs = [axs]
 for i, idx in enumerate(alert_idx):
     row = df_eval.loc[idx]
-    flow_values = X.loc[idx, top_features].astype(float)
-    benign_values = benign_means[top_features].astype(float)
-    ratio = (flow_values / benign_values.replace(0, np.nan)).abs()
-    bar_colors = ["crimson" if (pd.notna(r) and r > 2.0) else "steelblue" for r in ratio]
-    y_pos = np.arange(len(top_features))
-    axs[i].barh(y_pos + 0.2, flow_values.values, height=0.4, color=bar_colors, label="Flow")
-    axs[i].barh(y_pos - 0.2, benign_values.values, height=0.4, color="lightgray", label="BENIGN mean")
+    # deviation of the flow from normal traffic, in standard deviations
+    z = (X.loc[idx, features].astype(float) - benign_mean) / benign_std
+    z = z.dropna()
+    z_top = z.reindex(z.abs().sort_values(ascending=False).index).head(8)
+    print(f"{row['Label_group']}: top abnormal features ->", list(z_top.index[:3]))
+
+    z_plot = z_top.iloc[::-1]                 # most abnormal on top
+    z_draw = z_plot.clip(-cap, cap)           # cap long bars for readability
+    bar_colors = ["crimson" if abs(v) > threshold else "steelblue" for v in z_plot.values]
+    y_pos = np.arange(len(z_plot))
+    axs[i].barh(y_pos, z_draw.values, color=bar_colors)
+    axs[i].axvline(0, color="black", linewidth=0.8)
+    axs[i].axvline(threshold, color="gray", linestyle="--", linewidth=0.8)
+    axs[i].axvline(-threshold, color="gray", linestyle="--", linewidth=0.8)
+    axs[i].set_xlim(-cap, cap)
     axs[i].set_yticks(y_pos)
-    axs[i].set_yticklabels(top_features)
-    axs[i].invert_yaxis()
-    axs[i].set_xlabel("Value (raw scale)")
+    axs[i].set_yticklabels(z_plot.index)
+    axs[i].set_xlabel("Deviation from normal (std, capped at 12)")
     axs[i].set_title(f"{row['Label_group']} - {row['Label']} (risk {row['proba']:.2f})")
-    axs[i].legend(loc="lower right")
-plt.suptitle("Why this alert: flow value vs BENIGN mean (red = abnormal)")
+plt.suptitle("Why this alert: deviation from BENIGN mean (red = abnormal, beyond 3 std)")
 plt.tight_layout()
 plt.savefig(BASE + "/reports/figures/10_explication_alerte.png", dpi=120)
 plt.show()
