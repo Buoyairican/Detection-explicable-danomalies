@@ -1,0 +1,357 @@
+=============================================================================
+ANNEXE — PROMPTS UTILISES
+=============================================================================
+Projet  : Detection explicable d'anomalies dans les logs d'infrastructure
+          bancaire (dataset CICIDS2017)
+Etablissement : ENSA Kenitra
+Assistant IA  : Claude Code (Anthropic)
+
+-----------------------------------------------------------------------------
+Note de lecture
+-----------------------------------------------------------------------------
+Ce document liste, dans l'ordre chronologique, l'ensemble des prompts
+(instructions) que nous avons envoyes a l'assistant IA pendant la session de
+developpement du projet.
+
+- Les prompts sont reproduits textuellement, fautes de frappe d'origine
+  incluses (aucune correction n'a ete appliquee), afin de refleter fidelement
+  l'interaction reelle.
+- Ne sont PAS inclus : les commandes systeme de l'outil (/compact, /effort,
+  etc.), les confirmations automatiques, les notifications de taches et les
+  reponses generees par l'assistant.
+- Les doublons dus a un envoi interrompu puis renvoye (meme message reformule
+  a quelques secondes d'intervalle) ont ete fusionnes en une seule entree.
+
+Total : 53 prompts.
+
+=============================================================================
+DEBUT DES PROMPTS
+=============================================================================
+
+[01] clone this repo https://github.com/Buoyairican/Detection-explicable-danomalies
+
+[02] explore the code and explain what it does
+
+[03] i moved the cloned repo to model building file, and added a pdf of what we
+     studied during this semester, now the main gola is get this project
+     done(this repo) by today, but the coding style needs to be following the
+     coding style of the pdf, so i want you to add a claude.md file and add
+     coding style directives to it, then we should start planning so that we
+     get this project done today
+
+[04] continu
+
+[05] i just downloaded the zip file from this link
+     https://www.kaggle.com/datasets/chethuhn/network-intrusion-dataset?resource=download,
+     the zip file is in model-building
+
+[06] go ahead start building using workflows
+
+[07] is the data we are working with labeled or not?
+
+[08] I want to make a little change of plan, we want to build the project based
+     on a training and comparisson of multiple models, and the model with the
+     best accuracy score and best other relevant metrics is going to be kept
+
+[09] give me an estimate of how much time is would take to train the aSVM
+
+[10] give me the decisions to choose from, also,we want to fit to train the
+     models and compare them using a rolling data style, we train the data on a
+     first chunk, we test and compare on a second chunk, we log, then we train
+     on that same second chunck, and test again anf compare on the third chunk
+     and so on
+
+[11] models = {
+         "KNN": KNeighborsClassifier(n_neighbors=5,n_jobs=-1),
+         "SVM": SVC(C=0.5),
+         "Decision Tree": DecisionTreeClassifier(max_depth=3),
+         "Logistic Regression": LogisticRegression(C=0.5),
+         "Naive Baise": MultinomialNB()
+     }
+
+[12] so the thing is, we split the data in multiple chunks, we train the data on
+     the first chunk for exemple, then based on the score we make changes to the
+     hyoer parameters and we train it on the second split, and so on until we
+     have train it on everysplit and test it on one final split. waht do you
+     think of this method
+
+[13] okay so i guess it would be better to use those models LinearSVC ,Decision
+     Tree, Logistic Regression, Naive Bayes, random forest and XGBoost what do
+     you think
+
+[14] and knn too since you said the cost of it is low
+
+[15] where are we at right now and give me the dictionary of models
+
+[16] isn't 0.995 an overfit ? short asnwer
+
+[17] where are we at right now?
+
+[18] so you fully trained the model? on the 1.7M rows?
+
+[19] you seem to have taken the max of each grid as the best value found.rerun
+     the multi model testing phase, with higher hyperparameters margin
+     tests(higher grid margins)like 3X high, for example c = {0.5, 1, 1.5, 2,
+     2.5, 3}. Give me the values you'll use before running the code
+
+[20] run with these grids
+
+[21] would it have been better to use the gpu ? for this task and the training too
+
+[22] where are we at right now?
+
+[23] is there a way to know where it's at? at get an ETA
+
+[24] did you train the model on the whole dataset?
+
+[25] no i meant, after choosing XGBoost as the winner, did you train is on the
+     whole dataset
+
+[26] ok perfect, now we got our trained model, did you integrate it into the app
+     and frontend
+
+[27] yes finish it
+
+[28] so it's done done?
+
+[29] now can you push everything to github?
+
+[30] change the code in the notebooks/ and make it simpler and follow the coding
+     style of the teacher(check the pdf course or check claude.md directives). No
+     need to make the code fancy, make it direct and understandable, dont write a
+     lot of comments like simple ones, and remember our projectis in rnglish so
+     the name of variables and the prints should be in english. And don't run the
+     code since it would just give the same results
+
+[31] use workflow
+
+[32] push to github main
+
+[33] commit and push to github main
+
+[34] [capture d'ecran jointe au prompt] my friend sent me this and told me that
+     data isn't well balanced, i told him that it's actually normal since
+     statistically, most of alerts are false alerts in real life environements..
+     What do you think about this
+
+[35] My firend isn't very fluent in english, he checked the work me and you did
+     yesterday and he came up with some fixes here is his prompt:
+     """""prompt:
+     so we did in our last version to evaluate the models based on f1 score, and
+     in our need is to get the best model that detect the the mex of attack, like
+     0 attack should get away from detection and also near 0 false positives , so
+     the f1 score i think its not the right metric to use, we need the metric
+     based on TP so we gonna chose the best model in cv with recall,idk if im
+     right in this metric recall selection based in my need, if im not right stop
+     everything and tell me the best thing i can do in this situation please , and
+     also i want for each model the all metrics not only the f1 score or recall,
+     and each one with its confusion matrix. i see in the project Isolation Forest
+     still exist, why that ? , because i dont want it, its just a thing in our
+     first version of what we did, so now we focused on just the 7 models
+     LinearSVC, Decision Tree, Logistic Regression, Naive Bayes, Random Forest,
+     XGBoost, KNN, and also the code it still fancy and like a professionel of
+     python who write, like a someone who know what he should do to make the code
+     organized and can modifie one part and not all the part, like creat a
+     function and use it in different places so if he want to change somethin on
+     the code he will just change that function, we are not in this level, we are
+     just beginners, please lower the code leve and make it very simple, this is
+     what the level im talking about, this code dont use it but take it as a
+     referance as the level of code python i want  :
+
+     # Importation des bibliotheques de base
+     import string
+     import numpy as np
+     import pandas as pd
+
+     # Partie pour checkpoints
+     import joblib
+
+     # Partie pour integration "embedding" les texts en vecteurs
+     import nltk
+     from nltk.corpus import stopwords
+     from nltk.stem.porter import PorterStemmer
+     from sklearn.feature_extraction.text import TfidfVectorizer
+
+     # Partie pour Importation les models (KNN ,SVM ,Decision Tree ,Logistic Regression ,Linear Rgression , Naive Baise)
+     from sklearn.svm import SVC
+     from sklearn.linear_model import LinearRegression, LogisticRegression
+     from sklearn.neighbors import KNeighborsClassifier
+     from sklearn.tree import DecisionTreeClassifier
+     from sklearn.naive_bayes import MultinomialNB
+
+     # Pertie pour AUC et ROC
+     from sklearn.metrics import roc_curve, roc_auc_score , auc, RocCurveDisplay
+
+     # Partie pour tracer learning curve
+     from sklearn.model_selection import learning_curve
+
+     # Partie pour validation croisee
+     from sklearn.model_selection import cross_val_score
+
+     # Partie pour calculation scores
+     from sklearn.metrics import (
+         f1_score,
+         precision_score,
+         recall_score,
+         mean_absolute_error,
+         mean_squared_error,
+         accuracy_score,
+         r2_score)
+
+     # Prtie pour Mtrice de difusion
+     from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+
+     # Partie pour separation de donnees
+     from sklearn.model_selection import train_test_split
+
+     # Partie pour visualisation des donnees
+     import matplotlib.pyplot as plt
+     import seaborn as sns
+
+     # Charger le dataset
+     file_path = 'CEAS_08.csv'
+     df = pd.read_csv('CEAS_08.csv', sep=",", header=0)
+
+     # Pretraitement de texte
+     nltk.download('stopwords')
+     stemmer = PorterStemmer()
+     corpus = []
+     stopwordsSet = set(stopwords.words('english'))
+
+     for i in range(len(df)):
+         text = str(df['body'].iloc[i]).lower()
+         text = text.translate(str.maketrans('','',string.punctuation)).split()
+         text = [stemmer.stem(word) for word in text if word not in stopwordsSet]
+         text = ' '.join(text)
+         corpus.append(text)
+
+     vectorizer = TfidfVectorizer(max_df=0.9, min_df=5)
+
+     joblib.dump(vectorizer, 'vectorizer.pkl')
+     joblib.dump(stopwordsSet, 'stopwords.pkl')
+     joblib.dump(corpus, 'corpus.pkl')
+     joblib.dump(stemmer, 'stemmer.pkl')
+
+     # Separation des donnees
+     X = vectorizer.fit_transform(corpus)
+     Y = df['label'].astype(int)
+
+     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42, stratify=Y)
+
+     joblib.dump(X_train,'X_train.pkl')
+     joblib.dump(Y_train,'Y_train.pkl')
+     joblib.dump(X_test,'X_test.pkl')
+     joblib.dump(Y_test,'Y_test.pkl')
+
+     # Implementation des modeles
+     models = {
+         "KNN": KNeighborsClassifier(n_neighbors=5,n_jobs=-1),
+         "SVM": SVC(C=0.5),
+         "Decision Tree": DecisionTreeClassifier(max_depth=3),
+         "Logistic Regression": LogisticRegression(C=0.5),
+         "Naive Baise": MultinomialNB()
+     }
+
+     # Validation croisee (k=10)
+     X_train = joblib.load('X_train.pkl')
+     Y_train = joblib.load('Y_train.pkl')
+     results = {}
+     for name , model in models.items():
+         scores = cross_val_score(model ,X_train ,Y_train ,cv=10 ,scoring = 'f1')
+         results[name] = scores.mean()
+
+     joblib.dump(results,'results.pkl')
+
+     # Former et tester les modeles - Classification
+     for name, model in models.items():
+         model.fit(X_train, Y_train)
+         joblib.dump(model, f"{name.replace(' ', '_')}.pkl")
+
+     # Charger les modeles pre-entraines
+     models_pretrained = {
+         "KNN": joblib.load('KNN.pkl'),
+         "SVM": joblib.load('SVM.pkl'),
+         "Decision Tree": joblib.load('Decision_Tree.pkl'),
+         "Logistic Regression": joblib.load('Logistic_Regression.pkl'),
+         "Naive Baise": joblib.load('Naive_Baise.pkl')
+     }
+
+     metrics = {}
+     results = {}
+     X_test = joblib.load('X_test.pkl')
+     Y_test = joblib.load('Y_test.pkl')
+
+     for name , model in models_pretrained.items():
+         Y_pred = model.predict(X_test)
+         try:
+             y_prob = model.predict_proba(X_test)[:, 1]
+         except AttributeError:
+             try:
+                 y_prob = model.decision_function(X_test)
+             except:
+                 y_prob = None
+         results[name] = {"model": model, "y_pred": Y_pred, "y_prob": y_prob}
+         metrics[name] = {
+             "Accuracy": accuracy_score(Y_test, Y_pred),
+             "Precision": precision_score(Y_test, Y_pred),
+             "Recall": recall_score(Y_test, Y_pred),
+             "F1-Score": f1_score(Y_test, Y_pred),
+             "AUC": roc_auc_score(Y_test, y_prob)
+         }
+
+     metrics_df = pd.DataFrame(metrics).T
+     """""
+     if you don't understand something from what he said ask me, otherwise,
+     complete the task/tasks he gave on the prompt.
+
+[36] commit and push to main
+
+[37] did you remove gridsearch? and did you remove isolation forest ? answer simply
+
+[38] can you commit and push it as a branch ?
+
+[39] is the app in english or still in french ?(short answer)
+
+[40] yes translate it to english
+
+[41] push to main
+
+[42] so everything is pushed to main right?
+
+[43] remove any trace of regle static and anything associated to it, remove the
+     comparison with the wining model too. DOn't run any code just remove
+     "regle static"
+
+[44] this is not what i asked for i might have not explained things well and you
+     might have misunderstood.  can you reverse the code?
+
+[45] how did you understand what i meant, when i meant remove all traces of
+     "regles static "
+
+[46] do you think we should keep it or leave it? is it a good idea to keep those
+     static rules or would it be better to remove them(are they insightfull or
+     just stupid)
+
+[47] give me the link to the dashboard
+
+[48] remvoe "static rules" part from the front-end and use th ui ux pro max skill
+     to make a redesign
+
+[49] i want it in dark mode
+
+[50] push to main
+
+[51] i added the final report to Detection-explicable-danomalies, can you read it
+     and verify if it's factually correct and if it reports well what we did.
+     Don't change the pdf, just report back on things to fix if there is anything
+     to fix. ANd give me a score out of 100 of how good this pdf report is
+
+[52] is there any issue with figure 11
+
+[53] Notre prof et examinateur de projet nous a demande d'ajouter un annexe des
+     prompt utilise, donne moi tout les prompt que je t'ai emvoye dans cette
+     session dans un document text
+
+=============================================================================
+FIN DES PROMPTS
+=============================================================================
