@@ -1,12 +1,5 @@
 {
   "name": "XGBoost",
-  "best_params": {
-    "xgbclassifier__learning_rate": 0.1,
-    "xgbclassifier__max_depth": 8,
-    "xgbclassifier__n_estimators": 300
-  },
-  "cv_f1_mean": 0.9964,
-  "cv_f1_std": 0.0005,
-  "has_proba": true,
-  "retrained_on_full": true
+  "cv_f1_mean": 0.996,
+  "cv_f1_std": 0.0011
 }

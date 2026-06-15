@@ -16,7 +16,6 @@ BASE = "/home/samouraifox/Work/stuff/S6/Notes_Ai/projet-final/model-building/Det
 SCALER_PATH = BASE + "/models/scaler.pkl"
 BEST_MODEL_PATH = BASE + "/models/best_model.pkl"
 BEST_META_PATH = BASE + "/models/best_model_meta.json"
-ISO_PATH = BASE + "/models/isolation_forest.pkl"
 FEATURES_PATH = BASE + "/models/features.pkl"
 BENIGN_MEANS_PATH = BASE + "/models/benign_means.pkl"
 RULES_PATH = BASE + "/models/rule_baseline.json"
@@ -27,17 +26,16 @@ FEEDBACK_PATH = BASE + "/app/feedback.csv"
 # 1. Chargement (en cache) des modèles et artefacts
 @st.cache_resource
 def charger_modeles():
-    # Modèle gagnant (pipeline scaler interne) + scaler baseline iso + métadonnées
+    # Scaler (pour mettre à l'échelle avant prédiction) + modèle retenu + métadonnées
     scaler = joblib.load(SCALER_PATH)
     best_model = joblib.load(BEST_MODEL_PATH)
     with open(BEST_META_PATH, "r") as f:
         best_meta = json.load(f)
-    iso = joblib.load(ISO_PATH)
     features = joblib.load(FEATURES_PATH)
     benign_means = joblib.load(BENIGN_MEANS_PATH)
     with open(RULES_PATH, "r") as f:
         rules = json.load(f)
-    return scaler, best_model, best_meta, iso, features, benign_means, rules
+    return scaler, best_model, best_meta, features, benign_means, rules
 
 
 @st.cache_data
@@ -86,7 +84,7 @@ def verdict_regles(row, rules):
 
 
 # Chargement effectif
-scaler, best_model, best_meta, iso, features, benign_means, rules = charger_modeles()
+scaler, best_model, best_meta, features, benign_means, rules = charger_modeles()
 df = charger_echantillon()
 
 # Nom du modèle gagnant (issu du bake-off de la Phase 3)
@@ -99,7 +97,7 @@ st.set_page_config(page_title="SOC — Détection d'anomalies CICIDS2017", layou
 st.title("Détection explicable d'anomalies réseau — Tableau de bord SOC")
 st.markdown(
     f"Cet outil aide l'analyste à **trier les flux réseau** du jeu CICIDS2017. "
-    f"Pour chaque flux on compare trois approches (règles statiques, Isolation Forest, "
+    f"Pour chaque flux on compare deux approches (règles statiques et "
     f"**{nom_modele}** retenu en Phase 3), on affiche un **score de risque** et on "
     f"explique **pourquoi** une alerte se déclenche. Les vrais labels sont montrés à "
     f"titre indicatif seulement."
@@ -149,21 +147,13 @@ st.sidebar.caption(f"{len(index_dispo)} flux disponibles dans la sélection.")
 # Ligne brute sélectionnée
 row = df.loc[flux_idx]
 
-# Features BRUTES : le gagnant est un pipeline qui scale en interne
+# Features brutes du flux, puis mise à l'échelle (le modèle attend des features scalées)
 X = df.loc[[flux_idx], features]
-
-# Verdict du modèle gagnant + score de risque (probabilité d'attaque en %)
-# On passe les features BRUTES, surtout PAS scaler.transform avant
-best_pred = int(best_model.predict(X)[0])  # 0 = BENIGN, 1 = attaque
-score_risque = float(best_model.predict_proba(X)[:, 1][0]) * 100.0
-
-# Baseline Isolation Forest : elle, utilise le scaler externe sur le BRUT
 Xs = scaler.transform(X)
-# Score Isolation Forest : -1 = anomalie -> 1, 1 = normal -> 0
-iso_raw = int(iso.predict(Xs)[0])
-iso_flag = 1 if iso_raw == -1 else 0
-# Score d'anomalie continu (plus c'est négatif, plus c'est anormal)
-iso_score = float(iso.score_samples(Xs)[0])
+
+# Verdict du modèle retenu + score de risque (probabilité d'attaque en %)
+best_pred = int(best_model.predict(Xs)[0])  # 0 = BENIGN, 1 = attaque
+score_risque = float(best_model.predict_proba(Xs)[:, 1][0]) * 100.0
 
 # Verdict des règles statiques (sur features BRUTES)
 regle_flag, regle_detail = verdict_regles(row, rules)
@@ -193,9 +183,9 @@ with col_c:
     st.metric("Vraie famille (indicatif)", vraie_famille)
     st.caption(f"Label détaillé : {vrai_label}")
 
-# 7. Panneau COMPARAISON des 3 approches
-st.header("Comparaison des trois approches")
-col1, col2, col3 = st.columns(3)
+# 7. Panneau COMPARAISON des deux approches
+st.header("Comparaison des deux approches")
+col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Règles statiques")
@@ -206,14 +196,6 @@ with col1:
     st.caption("Logique OU sur seuils bruts (baseline simpliste).")
 
 with col2:
-    st.subheader("Isolation Forest")
-    if iso_flag == 1:
-        st.error("ANOMALIE")
-    else:
-        st.success("NORMAL")
-    st.caption(f"Score d'anomalie : {iso_score:.4f} (plus bas = plus anormal).")
-
-with col3:
     st.subheader(nom_modele)
     if best_pred == 1:
         st.error("ANOMALIE")
@@ -237,8 +219,8 @@ st.markdown(
 # Nombre de features à expliquer (curseur)
 top_n = st.slider("Nombre de features à expliquer", 5, 20, 10)
 
-# Importances du gagnant : on récupère le modèle final (dernier step du pipeline)
-modele_final = list(best_model.named_steps.values())[-1]
+# Importances du modèle retenu (directement sur le modèle)
+modele_final = best_model
 if hasattr(modele_final, "feature_importances_"):
     # Arbres / gradient boosting : importances natives
     poids = np.asarray(modele_final.feature_importances_)

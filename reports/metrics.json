@@ -1,90 +1,14 @@
 {
-  "Regles": {
-    "precision": 0.4455,
-    "recall": 0.6142,
-    "f1": 0.5164,
-    "accuracy": 0.8057,
-    "fp": 97654,
-    "fp_rate": 0.1554
-  },
-  "Isolation Forest": {
-    "precision": 0.6199,
-    "recall": 0.3994,
-    "f1": 0.4858,
-    "accuracy": 0.8572,
-    "fp": 31274,
-    "fp_rate": 0.0498
-  },
-  "XGBoost": {
-    "precision": 0.9966,
-    "recall": 0.9987,
-    "f1": 0.9976,
-    "accuracy": 0.9992,
-    "fp": 438,
-    "fp_rate": 0.0007
-  },
-  "bakeoff": {
-    "LinearSVC": {
-      "cv_f1_mean": 0.8525,
-      "cv_f1_std": 0.004,
-      "selected": false
-    },
-    "DecisionTree": {
-      "cv_f1_mean": 0.8567,
-      "cv_f1_std": 0.0041,
-      "selected": false
-    },
-    "LogisticRegression": {
-      "cv_f1_mean": 0.8597,
-      "cv_f1_std": 0.0051,
-      "selected": false
-    },
-    "GaussianNB": {
-      "cv_f1_mean": 0.377,
-      "cv_f1_std": 0.016,
-      "selected": false
-    },
-    "RandomForest": {
-      "cv_f1_mean": 0.9947,
-      "cv_f1_std": 0.0008,
-      "selected": false
-    },
-    "XGBoost": {
-      "cv_f1_mean": 0.9964,
-      "cv_f1_std": 0.0005,
-      "selected": true
-    },
-    "KNN": {
-      "cv_f1_mean": 0.9695,
-      "cv_f1_std": 0.0066,
-      "selected": false
-    }
-  },
-  "selected_model": "XGBoost",
-  "fp_reduction_best": 99.5515,
-  "fp_reduction_iso": 67.9747,
-  "target_60_80": {
-    "cible_min": 60.0,
-    "cible_max": 80.0,
-    "best_dans_cible": false,
-    "iso_dans_cible": true
-  },
+  "best_model": "XGBoost",
+  "fp_reduction_vs_rules": 99.55,
   "test": {
-    "Regles": {
+    "Rules": {
       "precision": 0.4455,
       "recall": 0.6142,
       "f1": 0.5164,
       "accuracy": 0.8057,
       "fp": 97654,
       "fp_rate": 0.1554
-    },
-    "Isolation Forest": {
-      "precision": 0.6199,
-      "recall": 0.3994,
-      "f1": 0.4858,
-      "accuracy": 0.8572,
-      "fp": 31274,
-      "fp_rate": 0.0498
     },
     "XGBoost": {
       "precision": 0.9966,
@@ -93,6 +17,71 @@
       "accuracy": 0.9992,
       "fp": 438,
       "fp_rate": 0.0007
+    }
+  },
+  "bakeoff": {
+    "LinearSVC": {
+      "cv_f1_mean": 0.8509,
+      "cv_f1_std": 0.0094,
+      "accuracy": 0.9513,
+      "precision": 0.8712,
+      "recall": 0.8351,
+      "f1": 0.8528,
+      "selected": false
+    },
+    "Decision Tree": {
+      "cv_f1_mean": 0.9928,
+      "cv_f1_std": 0.0014,
+      "accuracy": 0.9982,
+      "precision": 0.9927,
+      "recall": 0.9967,
+      "f1": 0.9947,
+      "selected": false
+    },
+    "Logistic Regression": {
+      "cv_f1_mean": 0.8694,
+      "cv_f1_std": 0.0074,
+      "accuracy": 0.9572,
+      "precision": 0.8817,
+      "recall": 0.8621,
+      "f1": 0.8718,
+      "selected": false
+    },
+    "Naive Bayes": {
+      "cv_f1_mean": 0.3616,
+      "cv_f1_std": 0.0085,
+      "accuracy": 0.3972,
+      "precision": 0.2181,
+      "recall": 0.9942,
+      "f1": 0.3578,
+      "selected": false
+    },
+    "Random Forest": {
+      "cv_f1_mean": 0.9937,
+      "cv_f1_std": 0.0012,
+      "accuracy": 0.9984,
+      "precision": 0.9949,
+      "recall": 0.9954,
+      "f1": 0.9951,
+      "selected": false
+    },
+    "XGBoost": {
+      "cv_f1_mean": 0.996,
+      "cv_f1_std": 0.0011,
+      "accuracy": 0.9986,
+      "precision": 0.9944,
+      "recall": 0.9976,
+      "f1": 0.996,
+      "selected": true
+    },
+    "KNN": {
+      "cv_f1_mean": 0.9643,
+      "cv_f1_std": 0.0026,
+      "accuracy": 0.9882,
+      "precision": 0.9655,
+      "recall": 0.9649,
+      "f1": 0.9652,
+      "selected": false
     }
   }
 }

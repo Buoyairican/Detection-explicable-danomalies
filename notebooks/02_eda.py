@@ -238,4 +238,4 @@ for f in figure_files:
 #
 # **5. Clean and usable data.** The frozen dataset no longer contains any NaN
 # or Infinity and all features are numeric, which allows going straight to
-# modeling (rule baseline, Isolation Forest then Random Forest).
+# modeling (rule baseline + a bake-off of 7 supervised models).

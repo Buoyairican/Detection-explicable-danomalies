@@ -1,24 +1,24 @@
 {
-  "description": "Baseline de regles statiques sur features brutes. Une ligne est flaggee comme attaque si AU MOINS une regle se declenche (OR logique). Seuils choisis proches des 95e/99e percentiles du trafic BENIGN du train. Baseline volontairement simpliste, taux de faux positifs eleve attendu.",
+  "description": "Static rules on raw features, attack if at least one rule fires (OR).",
   "logique": "OR",
   "regles": [
     {
       "feature": "Average Packet Size",
       "operateur": ">",
       "seuil": 496.0,
-      "justification": "Taille moyenne de paquet elevee typique des floods DoS/DDoS a payload."
+      "justification": "High average packet size (DoS/DDoS floods)."
     },
     {
       "feature": "Bwd Packets/s",
       "operateur": ">",
       "seuil": 58823.0,
-      "justification": "Debit de paquets retour eleve (99e percentile du BENIGN)."
+      "justification": "High backward packet rate."
     },
     {
       "feature": "Flow Packets/s",
       "operateur": ">",
       "seuil": 500000.0,
-      "justification": "Debit de paquets total tres eleve (95e percentile du BENIGN)."
+      "justification": "Very high packet rate."
     },
     {
       "feature_1": "Total Fwd Packets",
@@ -27,13 +27,13 @@
       "feature_2": "Flow Duration",
       "operateur_2": ">",
       "seuil_2": 1000000.0,
-      "justification": "Tres peu de paquets aller mais flux long : connexions de sonde/lentes."
+      "justification": "Few forward packets but a long flow (probe)."
     },
     {
       "feature": "Flow Bytes/s",
       "operateur": ">",
       "seuil": 12000000.0,
-      "justification": "Debit d'octets tres eleve (99e percentile du BENIGN)."
+      "justification": "Very high byte rate."
     }
   ],
   "recall_attaque_test": 0.6142,

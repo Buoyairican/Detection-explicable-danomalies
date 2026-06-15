@@ -1,8 +1,9 @@
 # CLAUDE.md — Explainable anomaly detection (CICIDS2017)
 
 S6 AI mini-project: explainable anomaly detection on network logs (CICIDS2017).
-Model bake-off (7 classifiers, CV + GridSearch) → keep the best (XGBoost); Isolation Forest +
-static rules kept as references. Streamlit dashboard. See `plan.md`.
+Model bake-off: compare 7 supervised classifiers by 10-fold cross-validation, show all metrics +
+a confusion matrix for each, and keep the best (selected on F1). A static rule baseline is kept
+for comparison. Streamlit dashboard. See `plan.md`.
 
 ---
 
